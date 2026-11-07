@@ -162,7 +162,7 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
     let p = cache?.get(key);
     if (p === undefined) {
       p = await probe(r.url, { gol, ...probeOpts });
-      cache?.set(key, p);
+      if (!(p && p.reason === "budget")) cache?.set(key, p);
     }
     if (!p) return null;
     const pageHost = host(p.finalUrl || r.url);
@@ -191,7 +191,8 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
     if (p.kind === "cookies") { stats.cookies++; return { ...web, needsCookies: true, play: { kind: "link", ...insidePlay } }; }
     if (p.kind === "link") return { ...web, play: { kind: "link", ...insidePlay } };
     // unreachable from the server (timeout, blocked): SearXNG listed it as a video, so keep it as a link
-    if (p.kind === "unreachable" && p.reason !== "blocked") return { ...web, play: { kind: "link" } };
+    // ("budget": we ran out of page checks for this search, so we know nothing: drop it)
+    if (p.kind === "unreachable" && p.reason !== "blocked" && p.reason !== "budget") return { ...web, play: { kind: "link" } };
     return null;
   });
   const kept = videos.filter(Boolean);

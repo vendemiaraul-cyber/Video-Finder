@@ -24,11 +24,20 @@ async function readLimited(res, maxBytes) {
   return text.slice(0, maxBytes);
 }
 
-export async function workerFetchPage(url, { timeoutMs = 6000, maxBytes = 250_000, maxRedirects = 5, fetchImpl = fetch } = {}) {
+/**
+ * Cloudflare's free plan allows 50 outside requests per incoming request.
+ * Pass the same `budget` object ({ left: N }) to every call of one search;
+ * once it runs out, calls fail fast with code EBUDGET instead of erroring later.
+ */
+export async function workerFetchPage(url, { timeoutMs = 6000, maxBytes = 250_000, maxRedirects = 5, fetchImpl = fetch, budget } = {}) {
   const chain = [url];
   let current = url;
   for (let hop = 0; hop <= maxRedirects; hop++) {
     if (!/^https?:$/.test(new URL(current).protocol)) throw new Error("unsupported protocol");
+    if (budget) {
+      if (budget.left <= 0) throw Object.assign(new Error("request budget used up"), { code: "EBUDGET" });
+      budget.left--;
+    }
     const res = await fetchImpl(current, {
       redirect: "manual",
       headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml,*/*;q=0.8", "accept-language": "en-US,en;q=0.8" },

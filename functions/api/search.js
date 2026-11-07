@@ -26,6 +26,7 @@ export async function onRequestGet({ request, env }) {
   if (!q || q.length > 300) return Response.json({ error: "missing or too long q" }, { status: 400 });
   if (!setting(env, "SEARXNG_URL")) return Response.json({ error: "SEARXNG_URL is not set in this Cloudflare project" }, { status: 503 });
   const gol = new Gol().register(sites);
+  const budget = { left: 45 };
   try {
     const { results, unresponsive } = await querySearxngAny(q, {
       baseUrl: setting(env, "SEARXNG_URL"), pages: 1, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
@@ -33,7 +34,9 @@ export async function onRequestGet({ request, env }) {
       categories: setting(env, "SEARXNG_CATEGORIES") || "videos,general",
     });
     const { videos, stats } = await toVideos(results, {
-      gol, probeLimit: 24, concurrency: 8, probeOpts: { fetch: workerFetchPage, timeoutMs: 5000 },
+      // 50 outside requests per search on the free plan: 1 went to SearXNG, keep a margin
+      gol, probeLimit: 24, concurrency: 8,
+      probeOpts: { fetch: (u, o) => workerFetchPage(u, { ...o, budget }), timeoutMs: 5000 },
       skip: skipList(setting(env, "SEARXNG_SKIP")),
     });
     return Response.json({ query: q, videos, stats, unresponsive }, { headers: { "cache-control": "public, max-age=300" } });

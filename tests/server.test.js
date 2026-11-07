@@ -354,3 +354,13 @@ test("pages offer 'inside' only when they allow being framed", async () => {
   const { videos } = await toVideos([{ url: "https://site.example/v", title: "V" }], { gol, cache: new Map([["probe:https://site.example/v", open]]), probeOpts: { fetch: fetchPage } });
   assert.deepEqual(videos[0].play, { kind: "link", inside: { kind: "iframe", src: "https://site.example/v" } });
 });
+
+test("the Cloudflare request budget stops page checks cleanly", async () => {
+  const budget = { left: 1 };
+  await workerFetchPage(base + "/novideo", { budget });
+  await assert.rejects(workerFetchPage(base + "/novideo", { budget }), (e) => e.code === "EBUDGET");
+  const p = await probe(base + "/file", { gol, fetch: (u, o) => workerFetchPage(u, { ...o, budget }) });
+  assert.deepEqual({ kind: p.kind, reason: p.reason }, { kind: "unreachable", reason: "budget" });
+  const { videos } = await toVideos([{ url: "https://news.example/x" }], { gol, probeOpts: { fetch: async () => { throw Object.assign(new Error("x"), { code: "EBUDGET" }); } } });
+  assert.equal(videos.length, 0);
+});

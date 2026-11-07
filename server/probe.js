@@ -118,7 +118,7 @@ export async function probe(url, { gol, fetch, allowPrivate = false, timeoutMs =
   try {
     res = await fetch(url, { timeoutMs, allowPrivate });
   } catch (err) {
-    return { kind: "unreachable", reason: err.code === "EBLOCKED" ? "blocked" : err.message };
+    return { kind: "unreachable", reason: err.code === "EBLOCKED" ? "blocked" : err.code === "EBUDGET" ? "budget" : err.message };
   }
   const info = res.body ? extract(res.body, res.url) : { embeds: [], files: [], iframes: [], hasVideo: false };
   const base = { finalUrl: res.url, title: info.title, thumbnail: info.thumbnail, duration: info.duration,
