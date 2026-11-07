@@ -24,18 +24,14 @@ server:
 
 outgoing:
   # Free servers are slow: give each search engine more time to answer.
-  request_timeout: 6.0
-  max_request_timeout: 12.0
+  request_timeout: 10.0
+  max_request_timeout: 20.0
 
 ui:
   default_theme: simple
 
 engines:
   # Video sources for other websites (off in SearXNG by default).
-  - name: rumble
-    disabled: false
-  - name: bitchute
-    disabled: false
   - name: bilibili
     disabled: false
   - name: niconico
@@ -46,15 +42,11 @@ engines:
     disabled: false
   - name: mediathekviewweb
     disabled: false
-  - name: acfun
-    disabled: false
   - name: qwant videos
     disabled: false
   - name: fireball videos
     disabled: false
   - name: privacywall videos
-    disabled: false
-  - name: tusksearch videos
     disabled: false
   - name: vuhuv videos
     disabled: false
@@ -66,4 +58,16 @@ engines:
   - name: sepiasearch
     disabled: true
   - name: wikicommons.videos
+    disabled: true
+  # These refuse free cloud servers (access denied, CAPTCHA) or fail from
+  # them, and only slow the others down.
+  - name: google videos
+    disabled: true
+  - name: duckduckgo
+    disabled: true
+  - name: duckduckgo videos
+    disabled: true
+  - name: vimeo
+    disabled: true
+  - name: wikidata
     disabled: true

@@ -28,7 +28,7 @@ export async function onRequestGet({ request, env }) {
   const gol = new Gol().register(sites);
   try {
     const { results, unresponsive } = await querySearxngAny(q, {
-      baseUrl: setting(env, "SEARXNG_URL"), pages: 2, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
+      baseUrl: setting(env, "SEARXNG_URL"), pages: 1, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
       // videos + the general web: the probe keeps only pages that really offer a video
       categories: setting(env, "SEARXNG_CATEGORIES") || "videos,general",
     });
