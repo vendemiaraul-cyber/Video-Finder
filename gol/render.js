@@ -118,7 +118,7 @@ export function player(video, container, { gol, cookieMode = "inside" } = {}) {
   container.replaceChildren();
   container.classList.remove("gol-vertical");
   const { play } = video;
-  const fallback = () => container.replaceChildren(linkPanel(video, container));
+  const fallback = () => showFallback(video, container);
   // Cookie-needing page that may be shown inside MeoDeo: open it right here.
   if (video.needsCookies && cookieMode === "inside" && play.kind === "link" && play.inside) {
     container.append(pageFrame(video, play.inside.src));
@@ -131,7 +131,10 @@ export function player(video, container, { gol, cookieMode = "inside" } = {}) {
   if (play.kind === "iframe") {
     const src = play.src.replace("{parent}", encodeURIComponent(location.hostname || "localhost"));
     const sandboxed = gol?.sites.get(video.site)?.sandboxed;
-    container.append(el("iframe", {
+    // Watchdog: a player that never finishes loading becomes the "watch on site" panel.
+    let loaded = false;
+    const watchdog = setTimeout(() => { if (!loaded && container.isConnected) fallback(); }, 20000);
+    const frame = el("iframe", {
       src, title: video.title, allowfullscreen: true,
       // storage-access lets the embedded site use its own cookies (sign-in, consent)
       allow: IFRAME_ALLOW,
@@ -139,7 +142,10 @@ export function player(video, container, { gol, cookieMode = "inside" } = {}) {
       referrerpolicy: "strict-origin-when-cross-origin",
       // Players from websites Gol has no definition for can't navigate MeoDeo away.
       sandbox: sandboxed ? "allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox" : null,
-    }));
+    });
+    frame.addEventListener("load", () => { loaded = true; clearTimeout(watchdog); });
+    container.append(frame);
+    return () => { clearTimeout(watchdog); container.replaceChildren(); };
   } else if (play.kind === "video") {
     const v = el("video", { controls: true, autoplay: true, playsinline: true, preload: "metadata",
                             poster: video.thumbnail });
@@ -159,20 +165,30 @@ export function player(video, container, { gol, cookieMode = "inside" } = {}) {
     }
     // The file can't be played here (format, blocked by the site...): offer the site instead.
     v.addEventListener("error", fallback, true);
+    // Watchdog: nothing loaded at all after a while (stalled, blocked): same.
+    const watchdog = setTimeout(() => { if (v.isConnected && v.readyState === 0) fallback(); }, 15000);
     container.append(v);
-    return () => { try { hls?.destroy(); } catch { /* gone */ } container.replaceChildren(); };
+    return () => { clearTimeout(watchdog); try { hls?.destroy(); } catch { /* gone */ } container.replaceChildren(); };
   } else {
     container.append(linkPanel(video, container));
   }
   return () => container.replaceChildren();
 }
 
+/** Replace whatever is playing with the "Watch on site" panel (e.g. after a black screen). */
+export function showFallback(video, container) {
+  container.classList.remove("gol-vertical");
+  container.replaceChildren(linkPanel(video, container, { failed: true }));
+}
+
 /** "Watch on site" panel, with "Play here" when the page may be shown inside MeoDeo. */
-function linkPanel(video, container) {
+function linkPanel(video, container, { failed = false } = {}) {
   const inside = video.play.inside;
   return el("div", { class: "gol-linkpanel" },
     video.thumbnail ? el("img", { src: video.thumbnail, alt: "", referrerpolicy: "no-referrer" }) : null,
-    el("p", { text: video.needsCookies
+    el("p", { text: failed
+      ? `This video didn't start here. ${video.domain} may block playing on other websites.` + (inside ? " You can try its page here, or watch it on the site." : "")
+      : video.needsCookies
       ? `${video.domain} needs its own cookies (consent or sign-in).` + (inside ? " You can open it here and accept them, or watch on the site." : " It only plays on the site itself.")
       : inside
         ? `${video.domain} has no embeddable player, but you can open its page here.`

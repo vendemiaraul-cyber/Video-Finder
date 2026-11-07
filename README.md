@@ -45,6 +45,7 @@ Type what you want to watch. MeoDeo asks lots of video websites at the same time
 - **oEmbed**: the official embed player a site publishes, found through the site's own oEmbed tag or the [oembed.com provider list](https://oembed.com/providers.json) (kept in `gol/oembed-providers.js`; refresh with `node scripts/update-oembed-providers.mjs`).
 - **HLS streams** (`.m3u8`, used by many news and TV sites) play with [hls.js](https://github.com/video-dev/hls.js) where the browser has no native HLS.
 - **"Play here"**: when a page has no embeddable player but allows being shown inside other sites, MeoDeo can open the page itself in its player.
+- **Many more pages checked**: the search answers with SearXNG's candidates at once, and the browser has each page checked by its own request (`/api/probe`, answers kept 3 days), up to 48 pages per search, with a second SearXNG page when needed. Results appear as they're confirmed.
 - MeoDeo never pulls a video out of a site's player or works around a site's embedding rules, so sites' ads and protections stay as they are.
 
 **Cookies setting (⚙ Settings → 🍪 Cookies):** some sites only play after you accept their cookies or sign in. By default MeoDeo plays those **inside its player**, where you accept the site's cookies or sign in (embedded players get the browser's Storage Access permission). Choose "Open them on their own website" to open them in a new tab instead. Safari limits cookies inside other sites more than other browsers; "Watch on …" under the player always works.
@@ -98,6 +99,14 @@ SEARXNG_URL=http://127.0.0.1:8888 npm start
 The server only opens public web pages: it refuses private and local network addresses, caps time and size, and serves only the app's own files.
 
 On GitHub Pages (no server), MeoDeo still searches the other websites directly. To add SearXNG there, run the MeoDeo server and put its address in ⚙ Settings → SearXNG.
+
+## Auto-Filter
+
+**✨ Auto-Filter** (on by default, first chip above the results) picks the sources most likely to have what you search for. Topics in your words point to sources (space → NASA, Wikimedia Commons, Internet Archive; old films and history → Internet Archive, Europeana; music → YouTube, Dailymotion, Odysee; news → SearXNG...), and it learns from each search in your browser: sources that found something for your words are added next time, sources that keep finding nothing are left out. Tap any source chip to choose by hand instead.
+
+## Black screens
+
+Some players load but never show anything. MeoDeo switches to the "watch on site" panel by itself when a player doesn't load in 20 seconds (15 for video files), and the player has a **Not playing?** button. For websites without a Gol definition, that also reports the site; after a few reports (more than times it worked), searches flag it as "site only".
 
 ## Public feed and MeoDeo accounts
 

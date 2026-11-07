@@ -220,3 +220,26 @@ test("SearXNG checks each candidate page separately and shows results as they ar
   // playable first: vimeo + b (video file), then a (site only); c had no video
   assert.deepEqual(r.videos.map((v) => v.domain), ["vimeo.com", "b.example", "a.example"]);
 });
+
+import { pickSources, learn, words } from "../gol/autofilter.js";
+
+test("Auto-Filter picks sources from the topic of the search", () => {
+  const all = ["searxng", "youtube", "dailymotion", "peertube", "odysee", "archive", "commons", "nasa", "europeana"];
+  assert.deepEqual(pickSources("apollo moon landing", all).sources, ["searxng", "youtube", "archive", "commons", "nasa"]);
+  assert.deepEqual(pickSources("lofi music", all).topics, ["music"]);
+  assert.ok(!pickSources("lofi music", all).sources.includes("nasa"));
+  assert.ok(pickSources("1920s silent film", all).sources.includes("europeana"));
+  assert.deepEqual(pickSources("stock drone footage", all).sources.includes("pexels"), false); // not available without a key
+  assert.deepEqual(pickSources("zxqv", all).sources, ["searxng", "youtube", "dailymotion", "peertube", "odysee"]);
+});
+
+test("Auto-Filter learns which sources find things for your words", () => {
+  const all = ["searxng", "youtube", "dailymotion", "peertube", "odysee", "archive", "nasa"];
+  let t = {};
+  for (let i = 0; i < 3; i++) t = learn(t, "zxqv capybara", { archive: { ok: true, count: 4 }, odysee: { ok: true, count: 0 }, nasa: { ok: false, count: 0 } });
+  const picked = pickSources("capybara", all, t).sources;
+  assert.ok(picked.includes("archive"), "archive found capybaras before");
+  assert.ok(!picked.includes("odysee"), "odysee kept finding nothing");
+  assert.equal(t.capybara.nasa, undefined, "a source that was down isn't judged");
+  assert.deepEqual(words("The best Video of cats"), ["cats"]);
+});
