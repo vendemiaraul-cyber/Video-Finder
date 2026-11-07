@@ -33,7 +33,7 @@ export async function onRequestGet({ request, env }) {
       categories: setting(env, "SEARXNG_CATEGORIES") || "videos,general",
     });
     const { videos, stats } = await toVideos(results, {
-      gol, probeLimit: 12, concurrency: 6, probeOpts: { fetch: workerFetchPage, timeoutMs: 5000 },
+      gol, probeLimit: 24, concurrency: 8, probeOpts: { fetch: workerFetchPage, timeoutMs: 5000 },
       skip: skipList(setting(env, "SEARXNG_SKIP")),
     });
     return Response.json({ query: q, videos, stats, unresponsive }, { headers: { "cache-control": "public, max-age=300" } });

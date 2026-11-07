@@ -124,6 +124,10 @@ async function pool(items, limit, fn) {
 export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6, probeOpts = {}, cache, skip = new Set(DEFAULT_SKIP) }) {
   const stats = { results: results.length, recognised: 0, skipped: 0, probed: 0, kept: 0, dropped: 0, cookies: 0 };
   let probes = 0;
+  // Check results from video sources before general web pages: they're the
+  // likeliest to have a playable video, and only probeLimit pages get checked.
+  const isVideoResult = (r) => r.category === "videos" || r.template === "videos.html";
+  results = [...results.filter(isVideoResult), ...results.filter((r) => !isVideoResult(r))];
   const videos = await pool(results, concurrency, async (r) => {
     const common = {
       title: r.title || undefined,
