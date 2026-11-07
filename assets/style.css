@@ -138,7 +138,3 @@ fieldset input, fieldset select { font: inherit; padding: 8px 10px; border: 1px 
 .auth-switch { display: flex; gap: 4px; }
 .auth-error { margin: 0; color: #b91c1c; font-size: 13px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .auth-error { color: #f87171; } }
-.chip-autofilter { font-weight: 700; border-color: var(--accent); }
-.chip-autofilter.on { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
-.chip-auto { opacity: .85; border-style: dashed; }
-.chip-auto:has(input:not(:checked)) { opacity: .45; }

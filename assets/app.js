@@ -1,13 +1,11 @@
 import { Gol, interleave } from "../gol/gol.js";
-import { pickSources, learn } from "../gol/autofilter.js";
 import sites from "../gol/sites/index.js";
 import { card, player, badge, formatCount, showFallback } from "../gol/render.js";
 
 const $ = (s) => document.querySelector(s);
 const STORE = "meodeo.settings.v2";
 const PREFS = "meodeo.sites.v1";
-const DEFAULTS = { cookieMode: "inside", autoFilter: "on" };
-const LEARNED = "meodeo.autofilter.v1";
+const DEFAULTS = { cookieMode: "inside" };
 
 // Settings live only in this browser. Storage can be unavailable (private
 // mode, blocked site data), so every access is guarded.
@@ -91,53 +89,20 @@ function showServerState() {
 
 /* ---------- site filter chips ---------- */
 
-let lastPicked = null; // sources Auto-Filter picked for the last search
-
-/** Sources that can be searched right now. */
-const availableSources = () => [...gol.sites.values()].filter((s) => s.search && gol.hasKeys(s) && !gol.unavailable.has(s.id)).map((s) => s.id);
-const autoOn = () => settings.autoFilter !== "off";
-
-function autoChip() {
-  const label = document.createElement("label");
-  label.className = "chip chip-autofilter" + (autoOn() ? " on" : "");
-  label.title = "Auto-Filter picks the sources most likely to have what you search for, and learns from results";
-  const cb = Object.assign(document.createElement("input"), { type: "checkbox", checked: autoOn() });
-  cb.addEventListener("change", () => {
-    settings = { ...settings, autoFilter: cb.checked ? "on" : "off" };
-    store.set(STORE, settings);
-    renderFilters();
-    if (els.q.value.trim()) search(els.q.value.trim());
-  });
-  label.append(cb, Object.assign(document.createElement("span"), { textContent: "✨ Auto-Filter" }));
-  return label;
-}
-
 function renderFilters() {
   const off = new Set(store.get(PREFS, []));
-  const auto = autoOn();
-  els.filters.replaceChildren(autoChip(), ...[...gol.sites.values()].filter((s) => s.search).map((site) => {
+  els.filters.replaceChildren(...[...gol.sites.values()].filter((s) => s.search).map((site) => {
     const missingKey = !gol.hasKeys(site);
     const why = gol.unavailable.get(site.id) || (missingKey ? `Add a ${site.name} API key in Settings to search it` : "");
     const label = document.createElement("label");
     label.className = "chip" + (why ? " chip-off" : "");
     label.title = why || `Search ${site.id === "searxng" ? "the web through SearXNG" : site.domain}`;
-    const picked = auto ? (lastPicked ? lastPicked.has(site.id) : true) : !off.has(site.id);
     const cb = Object.assign(document.createElement("input"), { type: "checkbox", value: site.id,
-      checked: !why && picked, disabled: !!why });
-    if (auto && !why) label.classList.add("chip-auto");
+      checked: !why && !off.has(site.id), disabled: !!why });
     cb.addEventListener("change", () => {
-      if (autoOn()) {
-        // Choosing a source by hand turns Auto-Filter off, starting from its picks.
-        const shown = lastPicked || new Set(availableSources());
-        const manualOff = availableSources().filter((id) => !shown.has(id));
-        settings = { ...settings, autoFilter: "off" };
-        store.set(STORE, settings);
-        store.set(PREFS, manualOff);
-      }
       const now = new Set(store.get(PREFS, []));
       cb.checked ? now.delete(site.id) : now.add(site.id);
       store.set(PREFS, [...now]);
-      renderFilters();
       if (els.q.value.trim()) search(els.q.value.trim());
     });
     const dot = Object.assign(document.createElement("i"), { className: "dot" });
@@ -167,16 +132,7 @@ async function search(query) {
   }
   history.replaceState(null, "", "?q=" + encodeURIComponent(query));
   document.title = `${query} · MeoDeo`;
-  let ids = chosenSites();
-  let autoNote = "";
-  if (autoOn()) {
-    const pick = pickSources(query, availableSources(), store.get(LEARNED, {}));
-    ids = pick.sources;
-    lastPicked = new Set(ids);
-    renderFilters();
-    autoNote = `Auto-Filter${pick.topics.length ? ` (${pick.topics.join(", ")})` : ""}: ` +
-      ids.map((id) => gol.sites.get(id).name).join(", ");
-  }
+  const ids = chosenSites();
   els.siteStatus.replaceChildren();
   if (!ids.length) {
     els.results.replaceChildren();
@@ -184,7 +140,7 @@ async function search(query) {
     return;
   }
   els.results.replaceChildren(...skeletons(8));
-  els.status.textContent = autoNote ? `${autoNote}. Searching…` : `Searching ${ids.length} sources for “${query}”…`;
+  els.status.textContent = `Searching ${ids.length} sources for “${query}”…`;
 
   const perSite = {};
   const playsHere = (v) => v.play.kind !== "link" || !!v.play.inside || (v.needsCookies && settings.cookieMode !== "open");
@@ -202,11 +158,9 @@ async function search(query) {
   draw();
   if (settings.playableOnly === "on") videos = videos.filter(playsHere);
   const websites = new Set(videos.map((v) => v.domain)).size;
-  els.status.textContent = (videos.length
+  els.status.textContent = videos.length
     ? `${videos.length} videos from ${websites} websites for “${query}”`
-    : `No videos found for “${query}”.`) + (autoNote ? ` · ${autoNote}` : "");
-  // Auto-Filter learns which sources found something for these words.
-  store.set(LEARNED, learn(store.get(LEARNED, {}), query, status));
+    : `No videos found for “${query}”.`;
   els.siteStatus.replaceChildren(...ids.filter((s) => status[s]).map((s) => {
     const st = status[s], site = gol.sites.get(s);
     const li = document.createElement("li");

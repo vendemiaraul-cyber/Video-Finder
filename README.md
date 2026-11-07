@@ -100,10 +100,6 @@ The server only opens public web pages: it refuses private and local network add
 
 On GitHub Pages (no server), MeoDeo still searches the other websites directly. To add SearXNG there, run the MeoDeo server and put its address in ⚙ Settings → SearXNG.
 
-## Auto-Filter
-
-**✨ Auto-Filter** (on by default, first chip above the results) picks the sources most likely to have what you search for. Topics in your words point to sources (space → NASA, Wikimedia Commons, Internet Archive; old films and history → Internet Archive, Europeana; music → YouTube, Dailymotion, Odysee; news → SearXNG...), and it learns from each search in your browser: sources that found something for your words are added next time, sources that keep finding nothing are left out. Tap any source chip to choose by hand instead.
-
 ## Black screens
 
 Some players load but never show anything. MeoDeo switches to the "watch on site" panel by itself when a player doesn't load in 20 seconds (15 for video files), and the player has a **Not playing?** button. For websites without a Gol definition, that also reports the site; after a few reports (more than times it worked), searches flag it as "site only".
