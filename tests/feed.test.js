@@ -108,3 +108,27 @@ test("cross-site writes, missing database, and sign-up limits", async () => {
   }
   assert.equal((await signupFn({ request: req("/api/auth/signup", { method: "POST", body: { username: "onemore", password: "password5" }, ip: "192.0.2.9" }), env })).status, 429);
 });
+
+import { onRequestPost as probeFn } from "../functions/api/probe.js";
+import { onRequestPost as reportFn } from "../functions/api/site-report.js";
+
+test("page checks are saved in D1 and reused", async () => {
+  const env = { DB: fakeD1() };
+  const call = () => probeFn({ request: req("/api/probe", { method: "POST", body: { result: { url: "https://vimeo.com/76979871", title: "Vimeo one", category: "videos" } } }), env });
+  const first = await (await call()).json();
+  assert.equal(first.video.site, "vimeo");
+  assert.equal(first.cached, undefined);
+  const second = await (await call()).json();
+  assert.equal(second.cached, true);
+  assert.equal(second.video.title, "Vimeo one");
+  assert.equal((await probeFn({ request: req("/api/probe", { method: "POST", origin: "https://evil.example", body: { result: { url: "https://vimeo.com/1" } } }), env })).status, 403);
+});
+
+test("Not playing? reports are counted per site", async () => {
+  const env = { DB: fakeD1() };
+  for (let i = 0; i < 3; i++) {
+    assert.equal((await reportFn({ request: req("/api/site-report", { method: "POST", body: { url: "https://www.blackscreen.example/v/" + i } }), env })).status, 200);
+  }
+  const row = await env.DB.prepare("SELECT reports FROM site_policy WHERE domain = 'blackscreen.example'").first();
+  assert.equal(row.reports, 3);
+});

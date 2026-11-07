@@ -70,12 +70,12 @@ export async function querySearxngAny(query, opts) {
 }
 
 /** Fetch one or more result pages from SearXNG. */
-export async function querySearxng(query, { baseUrl, pages = 2, categories = "videos", safesearch = 1, language = "all", fetchImpl = fetch, timeoutMs = 15000, headers = {} }) {
+export async function querySearxng(query, { baseUrl, pages = 2, firstPage = 1, categories = "videos", safesearch = 1, language = "all", fetchImpl = fetch, timeoutMs = 15000, headers = {} }) {
   const results = [];
   const unresponsive = new Set();
   const replies = await Promise.allSettled(Array.from({ length: pages }, async (_, i) => {
     const u = new URL("search", baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
-    Object.entries({ q: query, format: "json", categories, pageno: i + 1, safesearch, language })
+    Object.entries({ q: query, format: "json", categories, pageno: firstPage + i, safesearch, language })
       .forEach(([k, v]) => u.searchParams.set(k, v));
     const res = await fetchImpl(u, { headers: { accept: "application/json", ...headers }, signal: AbortSignal.timeout(timeoutMs) });
     if (res.status === 401) throw new SearxngError("SearXNG refused MeoDeo's key (check SEARXNG_KEY).");
@@ -212,4 +212,53 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
   stats.kept = kept.length;
   stats.dropped = results.length - kept.length;
   return { videos: kept, stats };
+}
+
+/**
+ * Split SearXNG results without checking any page (cheap, for one request):
+ *  - videos:     links to sites Gol knows (played right away)
+ *  - candidates: other pages, to be checked one by one with checkCandidate()
+ *                (each check can run as its own request, so a search isn't
+ *                limited by one request's allowance)
+ * Sites remembered as refusing embedding are dropped (or kept flagged, when
+ * a video source listed them).
+ */
+export async function splitResults(results, { gol, skip = new Set(DEFAULT_SKIP), perSite = 3, policy } = {}) {
+  const isVideoResult = (r) => r.category === "videos" || r.template === "videos.html";
+  const ordered = [...results.filter(isVideoResult), ...results.filter((r) => !isVideoResult(r))];
+  const perHost = new Map();
+  const capped = ordered.filter((r) => {
+    const h = host(r.url);
+    perHost.set(h, (perHost.get(h) || 0) + 1);
+    return perHost.get(h) <= perSite;
+  });
+  const records = policy?.getMany ? await policy.getMany([...new Set(capped.map((r) => host(r.url)))]) : {};
+  const videos = [], candidates = [];
+  const stats = { results: results.length, recognised: 0, skipped: 0, remembered: 0, candidates: 0 };
+  for (const r of capped) {
+    const known = gol.fromUrl(r.url, { title: r.title || undefined, via: "searxng" });
+    if (known && known.site !== "web") {
+      if (skip.has(known.site)) { stats.skipped++; continue; }
+      const [v] = (await toVideos([r], { gol, skip, perSite: 1, probeLimit: 0 })).videos;
+      if (v) { videos.push(v); stats.recognised++; }
+      continue;
+    }
+    if (refusesEmbedding(records[host(r.url)])) {
+      stats.remembered++;
+      if (isVideoResult(r) && known) videos.push({ ...gol.fromUrl(r.url, { title: r.title || undefined, via: "searxng" }), play: { kind: "link" }, embed: "refused" });
+      continue;
+    }
+    // keep only what the check needs
+    candidates.push(Object.fromEntries(["url", "title", "thumbnail", "thumbnail_src", "img_src", "length", "author", "publishedDate", "engines", "engine", "category", "template"]
+      .filter((k) => r[k] !== undefined && r[k] !== null && r[k] !== "").map((k) => [k, r[k]])));
+  }
+  stats.candidates = candidates.length;
+  return { videos, candidates, stats };
+}
+
+/** Check one candidate page (see splitResults). Returns a Gol video or null. */
+export async function checkCandidate(result, { gol, skip = new Set(DEFAULT_SKIP), policy, probeOpts, cache } = {}) {
+  if (!result || typeof result.url !== "string" || !/^https?:\/\//.test(result.url)) return null;
+  const { videos } = await toVideos([result], { gol, skip, policy, probeOpts, cache, probeLimit: 1, perSite: 1 });
+  return videos[0] || null;
 }

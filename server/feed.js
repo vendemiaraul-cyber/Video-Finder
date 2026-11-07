@@ -34,10 +34,18 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS site_policy (domain TEXT PRIMARY KEY, allowed INTEGER NOT NULL DEFAULT 0, inside INTEGER NOT NULL DEFAULT 0,
      blocked INTEGER NOT NULL DEFAULT 0, cookies INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL DEFAULT 0)`,
 ];
+// Added after the first release: applied one by one, ignoring "already exists".
+const MIGRATIONS = [
+  "ALTER TABLE site_policy ADD COLUMN reports INTEGER NOT NULL DEFAULT 0",
+  "CREATE TABLE IF NOT EXISTS probe_cache (url TEXT PRIMARY KEY, result_json TEXT NOT NULL, checked_at INTEGER NOT NULL)",
+];
 const ready = new WeakSet();
 export async function ensureSchema(db) {
   if (ready.has(db)) return;
   await db.batch(SCHEMA.map((sql) => db.prepare(sql)));
+  for (const sql of MIGRATIONS) {
+    try { await db.prepare(sql).run(); } catch { /* already applied */ }
+  }
   ready.add(db);
 }
 

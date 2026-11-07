@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Gol } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
-import { querySearxngAny, toVideos, SearxngError, checkSearxng, searxngList, skipList } from "./searxng.js";
+import { querySearxngAny, toVideos, splitResults, checkCandidate, SearxngError, checkSearxng, searxngList, skipList } from "./searxng.js";
 import { searchYouTube } from "./youtube.js";
 import { fetchPage } from "./net.js";
 import { MemoryPolicy } from "./site-policy.js";
@@ -90,8 +90,8 @@ export function createServer(cfg = config(), { fetchImpl = fetch } = {}) {
   return http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, "http://x");
-      if (req.method === "OPTIONS") return send(res, 204, "", { "access-control-allow-methods": "GET", "access-control-max-age": "86400" });
-      if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "Method not allowed");
+      if (req.method === "OPTIONS") return send(res, 204, "", { "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "content-type", "access-control-max-age": "86400" });
+      if (req.method !== "GET" && req.method !== "HEAD" && !(req.method === "POST" && url.pathname === "/api/probe")) return send(res, 405, "Method not allowed");
 
       if (url.pathname === "/api/health") {
         // Cache for a minute: each check runs a tiny SearXNG search.
@@ -122,6 +122,33 @@ export function createServer(cfg = config(), { fetchImpl = fetch } = {}) {
           }
         }
         return json(res, 200, { videos });
+      }
+
+      if (url.pathname === "/api/probe" && req.method === "POST") {
+        const chunks = [];
+        for await (const c of req) { chunks.push(c); if (chunks.reduce((n, b) => n + b.length, 0) > 20000) break; }
+        let result;
+        try { result = JSON.parse(Buffer.concat(chunks).toString("utf8")).result; } catch { return json(res, 400, { error: "Send JSON." }); }
+        if (!result || typeof result.url !== "string" || !/^https?:\/\//.test(result.url)) return json(res, 400, { error: "missing result.url" });
+        const video = await checkCandidate(result, {
+          gol, skip: cfg.skip, policy, cache: probeCache, probeOpts: { allowPrivate: cfg.allowPrivate, fetch: fetchPage },
+        });
+        return json(res, 200, { video });
+      }
+
+      if (url.pathname === "/api/search" && url.searchParams.get("mode") === "candidates") {
+        const q = (url.searchParams.get("q") || "").trim();
+        if (!q || q.length > 300) return json(res, 400, { error: "missing or too long q" });
+        const page = Math.max(1, Math.min(3, parseInt(url.searchParams.get("page") || "1", 10) || 1));
+        try {
+          const { results, unresponsive } = await querySearxngAny(q, {
+            baseUrl: cfg.searxngUrl, pages: 1, firstPage: page, categories: cfg.categories, safesearch: cfg.safesearch, fetchImpl,
+          });
+          return json(res, 200, { query: q, page, ...(await splitResults(results, { gol, skip: cfg.skip, policy })), unresponsive });
+        } catch (err) {
+          if (err instanceof SearxngError) return json(res, 502, { error: err.message });
+          throw err;
+        }
       }
 
       if (url.pathname === "/api/search") {

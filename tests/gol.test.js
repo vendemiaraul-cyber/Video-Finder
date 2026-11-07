@@ -146,7 +146,7 @@ test("Facebook and Instagram are marked as needing cookies", () => {
 });
 
 test("SearXNG results keep their own site and are checked against it", async () => {
-  const g = gol({ "/api/search?q=": { videos: [
+  const g = gol({ "/api/search?": { videos: [
     { id: "dQw4w9WgXcQ", site: "youtube", title: "Y", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", via: "searxng",
       play: { kind: "iframe", src: "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0&playsinline=1" } },
     { id: "https://news.example/v/1", site: "web", siteName: "news.example", domain: "news.example", title: "N", url: "https://news.example/v/1",
@@ -193,4 +193,30 @@ test("YouTube search tries MeoDeo's own backend before public Piped servers", as
   assert.equal(asked.length, 1);
   assert.equal(r.videos[0].play.src, "https://www.youtube.com/embed/xc1SzgGhMKc?autoplay=1&rel=0&playsinline=1");
   assert.equal(r.videos[0].duration, 1192);
+});
+
+test("SearXNG checks each candidate page separately and shows results as they arrive", async () => {
+  const calls = [];
+  const fetch = async (url, init = {}) => {
+    calls.push(String(url));
+    const ok = (data) => ({ ok: true, status: 200, json: async () => data });
+    if (String(url).includes("/api/search?mode=candidates&page=1")) return ok({
+      videos: [{ id: "76979871", site: "vimeo", title: "Vimeo", url: "https://vimeo.com/76979871", via: "searxng", play: { kind: "iframe", src: "https://player.vimeo.com/video/76979871" } }],
+      candidates: [{ url: "https://a.example/1" }, { url: "https://b.example/1" }, { url: "https://c.example/1" }] });
+    if (String(url).includes("page=2")) return ok({ videos: [], candidates: [] });
+    if (String(url).endsWith("/api/probe")) {
+      const u = JSON.parse(init.body).result.url;
+      if (u.startsWith("https://c.")) return ok({ video: null });
+      return ok({ video: { id: u, site: "web", siteName: new URL(u).hostname, domain: new URL(u).hostname, title: u, url: u, via: "searxng",
+        play: u.startsWith("https://a.") ? { kind: "link" } : { kind: "video", sources: [{ src: u + ".mp4", type: "video/mp4" }] } } });
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+  const g = new Gol({ fetch }).register(sites);
+  const partials = [];
+  const r = await g.search("x", { sites: ["searxng"], onPartial: (id, list) => list && partials.push(list.length) });
+  assert.equal(calls.filter((c) => c.endsWith("/api/probe")).length, 3);
+  assert.ok(partials.length >= 3, "results shown progressively");
+  // playable first: vimeo + b (video file), then a (site only); c had no video
+  assert.deepEqual(r.videos.map((v) => v.domain), ["vimeo.com", "b.example", "a.example"]);
 });

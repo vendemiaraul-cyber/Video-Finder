@@ -5,7 +5,7 @@
 //   HF_TOKEN     (secret, optional) for SearXNG on a private Hugging Face Space
 import { Gol } from "../../gol/gol.js";
 import sites from "../../gol/sites/index.js";
-import { querySearxngAny, toVideos, SearxngError, skipList } from "../../server/searxng.js";
+import { querySearxngAny, toVideos, splitResults, SearxngError, skipList } from "../../server/searxng.js";
 import { workerFetchPage } from "../../server/worker-fetch.js";
 import { CachePolicy, D1Policy } from "../../server/site-policy.js";
 
@@ -22,23 +22,34 @@ export const authHeaders = (env) => ({
   ...(setting(env, "HF_TOKEN") ? { authorization: `Bearer ${setting(env, "HF_TOKEN")}` } : {}),
 });
 
+/** Which sites allow or refuse embedding: D1 when set up, else Cloudflare's cache. */
+export const policyFor = (env) => (env.DB ? new D1Policy(env.DB) : (globalThis.caches?.default ? new CachePolicy(caches.default) : undefined));
+
 export async function onRequestGet({ request, env }) {
-  const q = (new URL(request.url).searchParams.get("q") || "").trim();
+  const params = new URL(request.url).searchParams;
+  const q = (params.get("q") || "").trim();
+  const page = Math.max(1, Math.min(3, parseInt(params.get("page") || "1", 10) || 1));
   if (!q || q.length > 300) return Response.json({ error: "missing or too long q" }, { status: 400 });
   if (!setting(env, "SEARXNG_URL")) return Response.json({ error: "SEARXNG_URL is not set in this Cloudflare project" }, { status: 503 });
   const gol = new Gol().register(sites);
   const budget = { left: 45 };
   try {
     const { results, unresponsive } = await querySearxngAny(q, {
-      baseUrl: setting(env, "SEARXNG_URL"), pages: 1, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
+      baseUrl: setting(env, "SEARXNG_URL"), pages: 1, firstPage: page, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
       // videos + the general web: the probe keeps only pages that really offer a video
       // videos, news (many news stories carry videos) and the general web
       categories: setting(env, "SEARXNG_CATEGORIES") || "videos,news,general",
     });
+    if (params.get("mode") === "candidates") {
+      // Fast answer: known-site videos now, other pages for the browser to have
+      // checked one by one through /api/probe (each check is its own request).
+      const split = await splitResults(results, { gol, skip: skipList(setting(env, "SEARXNG_SKIP")), policy: policyFor(env) });
+      return Response.json({ query: q, page, ...split, unresponsive }, { headers: { "cache-control": "public, max-age=300" } });
+    }
     const { videos, stats } = await toVideos(results, {
       // 50 outside requests per search on the free plan: 1 went to SearXNG, keep a margin
       // remembers which sites allow or refuse embedding (D1 when set up, else Cloudflare's cache)
-      policy: env.DB ? new D1Policy(env.DB) : (globalThis.caches?.default ? new CachePolicy(caches.default) : undefined),
+      policy: policyFor(env),
       gol, probeLimit: 30, concurrency: 8,
       probeOpts: { fetch: (u, o) => workerFetchPage(u, { ...o, budget }), timeoutMs: 5000 },
       skip: skipList(setting(env, "SEARXNG_SKIP")),

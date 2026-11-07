@@ -21,7 +21,11 @@ export function outcomeOf(p) {
 
 /** A site that has refused at least twice and never allowed anything. */
 export function refusesEmbedding(rec) {
-  return !!rec && (rec.blocked || 0) >= 2 && !(rec.allowed || 0) && !(rec.inside || 0);
+  if (!rec) return false;
+  // refused twice and never allowed anything...
+  if ((rec.blocked || 0) >= 2 && !(rec.allowed || 0) && !(rec.inside || 0)) return true;
+  // ...or viewers reported black screens more often than it worked
+  return (rec.reports || 0) >= 3 && (rec.reports || 0) >= (rec.allowed || 0);
 }
 
 const bump = (rec, outcome) => ({ allowed: 0, inside: 0, blocked: 0, cookies: 0, ...rec, [outcome]: ((rec && rec[outcome]) || 0) + 1, updated: Date.now() });
@@ -30,15 +34,21 @@ const bump = (rec, outcome) => ({ allowed: 0, inside: 0, blocked: 0, cookies: 0,
 export class MemoryPolicy {
   constructor() { this.map = new Map(); }
   async get(domain) { return this.map.get(domain) || null; }
+  async getMany(domains) { return Object.fromEntries(domains.map((d) => [d, this.map.get(d)]).filter(([, r]) => r)); }
   async record(domain, outcome) { if (domain && outcome) this.map.set(domain, bump(this.map.get(domain), outcome)); }
 }
 
-/** Cloudflare Cache API (per data centre, free, no setup). */
+/** Cloudflare Cache API (per data centre, free, no setup; not kept on pages.dev addresses). */
 export class CachePolicy {
   constructor(cache) { this.cache = cache; }
   key(domain) { return new Request(`https://site-policy.meodeo.invalid/${encodeURIComponent(domain)}`); }
   async get(domain) {
     try { const r = await this.cache.match(this.key(domain)); return r ? await r.json() : null; } catch { return null; }
+  }
+  async getMany(domains) {
+    const out = {};
+    for (const d of [...new Set(domains)].slice(0, 40)) { const r = await this.get(d); if (r) out[d] = r; }
+    return out;
   }
   async record(domain, outcome) {
     if (!domain || !outcome) return;
@@ -55,7 +65,16 @@ export class CachePolicy {
 export class D1Policy {
   constructor(db) { this.db = db; }
   async get(domain) {
-    try { return await this.db.prepare("SELECT allowed, inside, blocked, cookies, updated FROM site_policy WHERE domain = ?").bind(domain).first(); } catch { return null; }
+    try { return await this.db.prepare("SELECT allowed, inside, blocked, cookies, reports, updated FROM site_policy WHERE domain = ?").bind(domain).first(); } catch { return null; }
+  }
+  /** Many domains in one query (D1 allows a limited number of queries per request). */
+  async getMany(domains) {
+    const list = [...new Set(domains)].filter(Boolean).slice(0, 90);
+    if (!list.length) return {};
+    try {
+      const { results } = await this.db.prepare(`SELECT domain, allowed, inside, blocked, cookies, reports FROM site_policy WHERE domain IN (${list.map(() => "?").join(",")})`).bind(...list).all();
+      return Object.fromEntries(results.map((r) => [r.domain, r]));
+    } catch { return {}; }
   }
   async record(domain, outcome) {
     if (!domain || !outcome) return;

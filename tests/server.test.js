@@ -4,7 +4,7 @@ import http from "node:http";
 import { Gol } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
 import { extract, allowsFraming, probe } from "../server/probe.js";
-import { parseLength, querySearxng, querySearxngAny, checkSearxng, toVideos, skipList, DEFAULT_SKIP } from "../server/searxng.js";
+import { parseLength, querySearxng, querySearxngAny, checkSearxng, toVideos, skipList, DEFAULT_SKIP, splitResults, checkCandidate } from "../server/searxng.js";
 import { fetchPage, isPrivateAddress } from "../server/net.js";
 import { createServer, config } from "../server/server.js";
 
@@ -402,4 +402,28 @@ test("pages that couldn't be checked are kept only when a video source listed th
   const { videos } = await toVideos([{ url: "https://news.example/a", category: "news" }, { url: "https://vids.example/a", category: "videos" }],
     { gol, cache, probeOpts: { fetch: fetchPage } });
   assert.deepEqual(videos.map((v) => v.domain), ["vids.example"]);
+});
+
+test("splitResults: known sites now, other pages as candidates, refusing sites remembered", async () => {
+  const policy = new MemoryPolicy();
+  await policy.record("nope.example", "blocked"); await policy.record("nope.example", "blocked");
+  const r = await splitResults([
+    { url: "https://vimeo.com/76979871", title: "V", category: "videos" },
+    { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "Y", category: "videos" },
+    { url: "https://news.example/story", title: "N", category: "news", engines: ["brave"] },
+    { url: "https://nope.example/v/1", title: "Refuses", category: "videos" },
+    { url: "https://nope.example/page", title: "Refuses too", category: "general" },
+  ], { gol, policy });
+  assert.deepEqual(r.videos.map((v) => [v.site, v.embed]), [["vimeo", undefined], ["web", "refused"]]);
+  assert.deepEqual(r.candidates.map((c) => c.url), ["https://news.example/story"]);
+  assert.deepEqual(r.stats, { results: 5, recognised: 1, skipped: 1, remembered: 2, candidates: 1 });
+  const v = await checkCandidate({ url: base + "/file", title: "Clip", category: "videos" }, { gol, skip: new Set(), probeOpts: { allowPrivate: true, fetch: fetchPage } });
+  assert.equal(v, null); // http test page: Gol keeps only https links
+  assert.equal(await checkCandidate({ url: "javascript:alert(1)" }, { gol }), null);
+});
+
+test("black-screen reports flag a site once they outnumber successes", () => {
+  assert.ok(!refusesEmbedding({ reports: 2 }));
+  assert.ok(refusesEmbedding({ reports: 3 }));
+  assert.ok(!refusesEmbedding({ reports: 3, allowed: 5 }));
 });
