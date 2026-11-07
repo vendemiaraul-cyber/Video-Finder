@@ -263,3 +263,39 @@ test("adult or shock videos aren't accepted in the feed", async () => {
   const ok = await createPost(env.DB, user, { url: "https://vimeo.com/3" }, { resolveVideo: vid("Moon visible to the naked eye") });
   assert.equal(ok.video.title, "Moon visible to the naked eye");
 });
+
+test("Pexels key stays private on the server", async () => {
+  const { onRequestGet: pexelsFn } = await import("../functions/api/pexels.js");
+  const KEY = "secret-pexels-key-123";
+  const env = { DB: fakeD1(), PEXELS_API_KEY: KEY };
+  let calls = 0, sentKey = null;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => {
+    calls++; sentKey = opts.headers.authorization;
+    assert.match(String(url), /^https:\/\/api\.pexels\.com\/videos\/search\?/);
+    return Response.json({ videos: [
+      { id: 1, url: "https://www.pexels.com/video/moon-rising-123/", image: "https://images.pexels.com/1.jpg", duration: 9, user: { name: "Ana" },
+        video_files: [{ file_type: "video/mp4", width: 1280, link: "https://videos.pexels.com/1.mp4" }] },
+      { id: 2, url: "https://www.pexels.com/video/nsfw-thing-2/", image: "https://images.pexels.com/2.jpg",
+        video_files: [{ file_type: "video/mp4", width: 1280, link: "https://videos.pexels.com/2.mp4" }] },
+    ] });
+  };
+  try {
+    const get = (opts) => pexelsFn({ request: req("/api/pexels?q=Moon", opts), env });
+    assert.deepEqual(await (await pexelsFn({ request: req("/api/pexels?check=1"), env })).json(), { ready: true });
+    const res = await get();
+    const body = await res.text();
+    assert.equal(res.status, 200);
+    assert.ok(!body.includes(KEY), "the key never reaches the browser");
+    assert.equal(sentKey, KEY, "the key is only sent to Pexels");
+    const { videos } = JSON.parse(body);
+    assert.deepEqual(videos.map((v) => v.title), ["moon rising"], "the content filter applies");
+    await get(); // same search again: served from the cache
+    assert.equal(calls, 1);
+    assert.equal((await get({ origin: "https://evil.example" })).status, 403, "other websites can't spend the key");
+    assert.equal((await pexelsFn({ request: req("/api/pexels?q=x"), env: { DB: fakeD1() } })).status, 503);
+    assert.deepEqual(await (await pexelsFn({ request: req("/api/pexels?check=1"), env: {} })).json(), { ready: false });
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

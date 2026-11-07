@@ -235,3 +235,21 @@ UPDATE takedowns SET status = 'rejected' WHERE id = 1;       -- put a link back
 UPDATE posts SET hidden = 0 WHERE id = 1;                    -- restore a post
 DELETE FROM posts WHERE id = 1;                              -- delete a post for good
 ```
+
+## Pexels (private key on the server)
+
+Pexels is searched by MeoDeo's server (`/api/pexels`) with the site's own key.
+The key is never sent to browsers: it's stored as an encrypted Cloudflare
+Secret, only sent to api.pexels.com, and Pexels' error messages aren't passed
+on. Only MeoDeo's own pages can use the route, each visitor gets 60 searches an
+hour, and results are cached for a day in D1, so the free Pexels allowance
+(200 requests an hour, 20,000 a month) isn't used up. Pexels is free: no card
+or bank account.
+
+1. Get a free key at <https://www.pexels.com/api/> (Pexels account needed).
+2. Cloudflare → Workers & Pages → your project → Settings → Variables and Secrets →
+   **Add** → Type **Secret** → Name `PEXELS_API_KEY` → paste the key → Save
+   (for Production).
+3. Deployments → latest → **Retry deployment** (secrets apply to new deployments).
+
+On the Node server, set `PEXELS_API_KEY` in its environment instead.

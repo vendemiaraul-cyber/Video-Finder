@@ -50,6 +50,8 @@ const MIGRATIONS = [
      name TEXT NOT NULL, contact TEXT NOT NULL, work TEXT NOT NULL, kind TEXT NOT NULL, details TEXT NOT NULL DEFAULT '',
      status TEXT NOT NULL DEFAULT 'removed', created_at INTEGER NOT NULL)`,
   "CREATE INDEX IF NOT EXISTS takedowns_canonical ON takedowns (canonical, status)",
+  // Cached answers from APIs with small free allowances (Pexels).
+  "CREATE TABLE IF NOT EXISTS api_cache (key TEXT PRIMARY KEY, result_json TEXT NOT NULL, checked_at INTEGER NOT NULL)",
 ];
 const ready = new WeakSet();
 export async function ensureSchema(db) {

@@ -18,8 +18,18 @@ test("every site definition is valid and ids are unique", () => {
 });
 
 test("sites that need keys are not searchable without them", () => {
-  assert.ok(!gol().searchableSites().some((s) => s.id === "pexels"));
-  assert.ok(gol({}, { pexelsKey: "k" }).searchableSites().some((s) => s.id === "pexels"));
+  const keyed = { id: "keyed", name: "Keyed", domain: "keyed.example", keys: [{ name: "keyedKey", label: "Key" }], search: async () => [] };
+  assert.ok(!new Gol().register([keyed]).searchableSites().some((s) => s.id === "keyed"));
+  assert.ok(new Gol({ keys: { keyedKey: "k" } }).register([keyed]).searchableSites().some((s) => s.id === "keyed"));
+});
+
+test("Pexels needs no key in the browser: it asks MeoDeo's server", async () => {
+  assert.ok(!(sites.find((s) => s.id === "pexels").keys || []).length);
+  const g = gol({ "/api/pexels?q=moon": { videos: [{ id: "1", title: "moon rising", url: "https://www.pexels.com/video/moon-rising-1/",
+    thumbnail: "https://images.pexels.com/1.jpg", files: [{ src: "https://videos.pexels.com/1.mp4", type: "video/mp4" }] }] } });
+  const { videos } = await g.search("moon", { sites: ["pexels"] });
+  assert.equal(videos[0].play.kind, "video");
+  assert.equal(videos[0].play.sources[0].src, "https://videos.pexels.com/1.mp4");
 });
 
 const fakeV = (site, id) => ({ site, id });

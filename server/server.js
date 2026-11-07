@@ -8,6 +8,7 @@
  * Serves the MeoDeo website and adds:
  *   GET /api/health          -> { ok, searxng, reason }  (reason: json-off, limiter-on, unreachable)
  *   GET /api/youtube?q=...   -> YouTube search (official API with YOUTUBE_API_KEY)
+ *   GET /api/pexels?q=...    -> Pexels search with PEXELS_API_KEY (kept on the server)
  *   GET /api/search?q=...    -> SearXNG video results that really offer a
  *                               video, as Gol videos
  */
@@ -19,6 +20,7 @@ import { Gol } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
 import { querySearxngAny, toVideos, splitResults, checkCandidate, SearxngError, checkSearxng, searxngList, skipList } from "./searxng.js";
 import { searchYouTube } from "./youtube.js";
+import { searchPexels, PexelsError } from "./pexels.js";
 import { fetchPage } from "./net.js";
 import { MemoryPolicy } from "./site-policy.js";
 
@@ -37,6 +39,7 @@ export function config(env = process.env) {
     probeLimit: +(env.PROBE_LIMIT || 16),
     allowOrigin: env.ALLOW_ORIGIN || "*",
     youtubeKey: env.YOUTUBE_API_KEY || undefined,
+    pexelsKey: (env.PEXELS_API_KEY || "").trim() || undefined, // stays on this server, never sent to browsers
     // Testing only: lets the probe open pages on this machine's network.
     allowPrivate: env.MEODEO_ALLOW_PRIVATE === "1",
   };
@@ -119,6 +122,24 @@ export function createServer(cfg = config(), { fetchImpl = fetch } = {}) {
             searchCache.set(key, videos);
           } catch (err) {
             return json(res, 502, { error: err.message });
+          }
+        }
+        return json(res, 200, { videos });
+      }
+
+      if (url.pathname === "/api/pexels") {
+        if (url.searchParams.has("check")) return json(res, 200, { ready: !!cfg.pexelsKey });
+        const q = (url.searchParams.get("q") || "").trim().toLowerCase();
+        if (!q || q.length > 300) return json(res, 400, { error: "missing or too long q" });
+        const key = "px:" + q;
+        let videos = searchCache.get(key);
+        if (!videos) {
+          try {
+            videos = await searchPexels(q, { apiKey: cfg.pexelsKey, fetchImpl });
+            searchCache.set(key, videos);
+          } catch (err) {
+            const e = err instanceof PexelsError ? err : { status: 502, code: "server", message: "Pexels search failed." };
+            return json(res, e.status, { error: e.message, code: e.code });
           }
         }
         return json(res, 200, { videos });

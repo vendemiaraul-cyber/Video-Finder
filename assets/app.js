@@ -22,6 +22,9 @@ const store = {
 };
 
 let settings = { ...DEFAULTS, ...store.get(STORE, {}) };
+// Pexels now goes through MeoDeo's server with a private key: forget any key
+// an older version kept in this browser.
+if (settings.pexelsKey) { delete settings.pexelsKey; store.set(STORE, settings); }
 const gol = new Gol({ keys: settings }).register(sites);
 
 const els = {
@@ -647,6 +650,15 @@ $("#verify-pick-turnstile").addEventListener("click", () => openWidget("turnstil
 /* ---------- boot ---------- */
 
 gol.unavailable.set("searxng", "checking…"); // until the first check answers
+// Pexels is searched by MeoDeo's server with its own private key, when one is set up.
+gol.unavailable.set("pexels", "checking…");
+fetch(serverBase() + "/api/pexels?check=1", { signal: AbortSignal.timeout(8000) })
+  .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+  .then((d) => {
+    if (d?.ready) gol.unavailable.delete("pexels");
+    else gol.unavailable.set("pexels", "Pexels isn't set up on this MeoDeo yet");
+    renderFilters();
+  });
 els.form.addEventListener("submit", (e) => {
   e.preventDefault();
   const q = els.q.value.trim();
