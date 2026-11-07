@@ -8,9 +8,11 @@ import sites from "../../gol/sites/index.js";
 import { querySearxngAny, toVideos, SearxngError } from "../../server/searxng.js";
 import { workerFetchPage } from "../../server/worker-fetch.js";
 
+// Trim: keys pasted on a phone often pick up a space or line break.
+const clean = (v) => String(v || "").trim();
 export const authHeaders = (env) => ({
-  ...(env.SEARXNG_KEY ? { "x-meodeo-key": env.SEARXNG_KEY } : {}),
-  ...(env.HF_TOKEN ? { authorization: `Bearer ${env.HF_TOKEN}` } : {}),
+  ...(clean(env.SEARXNG_KEY) ? { "x-meodeo-key": clean(env.SEARXNG_KEY) } : {}),
+  ...(clean(env.HF_TOKEN) ? { authorization: `Bearer ${clean(env.HF_TOKEN)}` } : {}),
 });
 
 export async function onRequestGet({ request, env }) {
@@ -20,7 +22,7 @@ export async function onRequestGet({ request, env }) {
   const gol = new Gol().register(sites);
   try {
     const { results, unresponsive } = await querySearxngAny(q, {
-      baseUrl: env.SEARXNG_URL, pages: 2, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
+      baseUrl: clean(env.SEARXNG_URL), pages: 2, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
     });
     const { videos, stats } = await toVideos(results, {
       gol, probeLimit: 8, concurrency: 4, probeOpts: { fetch: workerFetchPage, timeoutMs: 5000 },

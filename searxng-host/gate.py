@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-KEY = os.environ.get("MEODEO_KEY", "")
+KEY = os.environ.get("MEODEO_KEY", "").strip()
 UPSTREAM = os.environ.get("SEARXNG_UPSTREAM", "http://127.0.0.1:8888")
 PORT = int(os.environ.get("PORT", "10000"))
 PASS_HEADERS = ("content-type", "content-length", "cache-control")
@@ -31,7 +31,7 @@ class Gate(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path in ("/", "/healthz"):
             return self._deny(200, "MeoDeo SearXNG gate is running.\n")
-        given = self.headers.get("x-meodeo-key", "")
+        given = self.headers.get("x-meodeo-key", "").strip()
         if not KEY or not hmac.compare_digest(given.encode(), KEY.encode()):
             return self._deny(401, "Missing or wrong MeoDeo key.\n")
         if not (self.path.startswith("/search") or self.path.startswith("/config")):

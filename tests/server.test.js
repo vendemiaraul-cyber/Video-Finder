@@ -260,7 +260,7 @@ test("the Cloudflare SearXNG functions use SEARXNG_URL and the Hugging Face toke
     return jsonResponse(200, searxReply([{ url: "https://vimeo.com/76979871", title: "Vimeo one", length: 61 }]));
   };
   try {
-    const env = { SEARXNG_URL: "https://someone-meodeo-searxng.hf.space", HF_TOKEN: "hf_test", SEARXNG_KEY: "k1" };
+    const env = { SEARXNG_URL: " https://someone-meodeo-searxng.hf.space\n", HF_TOKEN: "hf_test", SEARXNG_KEY: " k1\n" };
     const r = await searchFn({ request: new Request("https://x.pages.dev/api/search?q=cats"), env });
     const d = await r.json();
     assert.equal(d.videos[0].site, "vimeo");

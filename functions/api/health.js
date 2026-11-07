@@ -4,7 +4,7 @@ import { checkSearxng, searxngList } from "../../server/searxng.js";
 import { authHeaders } from "./search.js";
 
 export async function onRequestGet({ env }) {
-  const urls = searxngList(env.SEARXNG_URL);
+  const urls = searxngList(String(env.SEARXNG_URL || "").trim());
   if (!urls.length) return Response.json({ ok: true, app: "meodeo", searxng: false, searxngUrl: "", reason: "not-set" });
   const checks = await Promise.all(urls.map((u) => checkSearxng(u, { headers: authHeaders(env), timeoutMs: 25000 })));
   const good = checks.find((c) => c.ok);
