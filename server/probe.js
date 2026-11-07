@@ -11,7 +11,6 @@
  *   5. the page hides behind a cookie wall / consent / login -> needsCookies
  *   6. no video at all                                     -> dropped
  */
-import { fetchPage } from "./net.js";
 
 const COOKIE_PATH = /(^|[./_-])(consent|cookies?|gdpr|privacy-?gate|login|log-in|signin|sign-in|sign_in|accounts?|auth|captcha|challenge)([./_?-]|$)/i;
 const COOKIE_TEXT = /(please\s+)?(enable|accept|allow)\s+(all\s+)?cookies|cookies\s+(are|is)\s+(disabled|required|blocked)|requires?\s+cookies|cookie[\s_-]?wall|consent\.(google|youtube|yahoo)\.com|you\s+must\s+(be\s+)?(logged|signed)\s+in/i;
@@ -101,7 +100,8 @@ function looksLikeCookieWall(res, startUrl) {
  * @returns {Promise<null | {kind:'gol', video} | {kind:'iframe', src} | {kind:'file', sources} | {kind:'link'} | {kind:'cookies'} , ...meta>}
  *          null means "this page offers no video".
  */
-export async function probe(url, { gol, fetch = fetchPage, allowPrivate = false, timeoutMs = 6000 } = {}) {
+export async function probe(url, { gol, fetch, allowPrivate = false, timeoutMs = 6000 } = {}) {
+  if (!fetch) throw new Error("probe needs a page fetcher (fetchPage on Node, workerFetchPage on Cloudflare)");
   let res;
   try {
     res = await fetch(url, { timeoutMs, allowPrivate });

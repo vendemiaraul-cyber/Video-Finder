@@ -1,0 +1,24 @@
+# SearXNG settings for MeoDeo.
+# Everything not listed here keeps SearXNG's defaults.
+use_default_settings: true
+
+general:
+  instance_name: "MeoDeo SearXNG"
+
+search:
+  safe_search: 1
+  # MeoDeo reads results through the JSON API, which SearXNG turns off by default.
+  formats:
+    - html
+    - json
+
+server:
+  # Set through SEARXNG_SECRET in docker-compose.yml / .env.
+  # secret_key: ...
+  # This instance is private to MeoDeo, so don't rate-limit it.
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+ui:
+  default_theme: simple

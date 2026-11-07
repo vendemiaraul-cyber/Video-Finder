@@ -101,7 +101,14 @@ On GitHub Pages (no server), MeoDeo still searches the other websites directly. 
 
 Cloudflare also runs `functions/api/youtube.js` (a Pages Function), which gives MeoDeo its own YouTube search, so YouTube works without a key and without the public Piped servers. Optional: in the Pages project's **Settings → Variables and Secrets**, add `YOUTUBE_API_KEY` to use the official YouTube Data API instead. On the free plan, going over the daily request allowance makes this function return an error until the next day; Cloudflare never charges you without a paid plan.
 
-SearXNG can't run on Cloudflare. To add it, run the MeoDeo server with SearXNG on a computer (`docker compose up -d`) and put its address in ⚙ Settings → SearXNG.
+**SearXNG on Cloudflare:** SearXNG itself can't run on Cloudflare, so it runs as a **private Hugging Face Space** (free, no card) made from `searxng-space/`, and two Pages Functions (`functions/api/search.js`, `functions/api/health.js`) reach it. In the Pages project's **Settings → Variables and Secrets**, set:
+
+| Name | Type | Value |
+|---|---|---|
+| `SEARXNG_URL` | Text | the Space's address, e.g. `https://<user>-meodeo-searxng.hf.space` |
+| `HF_TOKEN` | Secret | a Hugging Face **read** token (so the private Space lets MeoDeo in) |
+
+Then redeploy. ⚙ Settings in MeoDeo shows whether SearXNG is on. A Space that hasn't been used for a while goes to sleep and takes about a minute to wake up.
 
 ## Publish on GitHub Pages
 

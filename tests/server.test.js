@@ -36,14 +36,14 @@ before(async () => {
 });
 after(() => site.close());
 
-const opts = () => ({ gol, allowPrivate: true });
+const opts = () => ({ gol, allowPrivate: true, fetch: fetchPage });
 
 test("the probe refuses private addresses unless testing", async () => {
   assert.ok(isPrivateAddress("127.0.0.1") && isPrivateAddress("10.1.2.3") && isPrivateAddress("192.168.0.1"));
   assert.ok(isPrivateAddress("::1") && isPrivateAddress("::ffff:127.0.0.1") && isPrivateAddress("169.254.169.254"));
   assert.ok(!isPrivateAddress("93.184.216.34"));
   await assert.rejects(fetchPage(base + "/article"), /blocked|unsupported port/);
-  const p = await probe(base + "/article", { gol });
+  const p = await probe(base + "/article", { gol, fetch: fetchPage });
   assert.equal(p.kind, "unreachable");
   assert.equal(p.reason, "blocked");
 });
@@ -132,7 +132,7 @@ test("toVideos keeps only results that offer a video", async () => {
     { url: base + "/novideo", title: "No video" },
     { url: base + "/gated", title: "Gated" },
   ];
-  const { videos, stats } = await toVideos(results, { gol, probeOpts: { allowPrivate: true } });
+  const { videos, stats } = await toVideos(results, { gol, probeOpts: { allowPrivate: true, fetch: fetchPage } });
   assert.equal(stats.recognised, 1);
   assert.equal(stats.probed, 3);
   assert.equal(stats.dropped, 2); // /novideo has no video; /gated is http, and Gol only keeps https links
@@ -235,4 +235,43 @@ test("YouTube search uses the official API when a key is set", async () => {
 test("the Cloudflare Pages Function answers like the Node server", async () => {
   const bad = await onRequestGet({ request: new Request("https://x.pages.dev/api/youtube"), env: {} });
   assert.equal(bad.status, 400);
+});
+
+import { workerFetchPage } from "../server/worker-fetch.js";
+import { onRequestGet as searchFn } from "../functions/api/search.js";
+import { onRequestGet as healthFn } from "../functions/api/health.js";
+
+test("the Cloudflare page fetcher follows redirects like the Node one", async () => {
+  const gated = await workerFetchPage(base + "/gated");
+  assert.equal(gated.chain.length, 2);
+  assert.match(gated.chain[1], /consent/);
+  const loop = await workerFetchPage(base + "/loop");
+  assert.equal(loop.loop, true);
+  const file = await probe(base + "/file", { gol, fetch: workerFetchPage });
+  assert.equal(file.kind, "file");
+  assert.equal((await probe(base + "/novideo", { gol, fetch: workerFetchPage })), null);
+});
+
+test("the Cloudflare SearXNG functions use SEARXNG_URL and the Hugging Face token", async () => {
+  const realFetch = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (u, init = {}) => {
+    seen.push({ url: String(u), auth: init.headers?.authorization });
+    return jsonResponse(200, searxReply([{ url: "https://vimeo.com/76979871", title: "Vimeo one", length: 61 }]));
+  };
+  try {
+    const env = { SEARXNG_URL: "https://someone-meodeo-searxng.hf.space", HF_TOKEN: "hf_test" };
+    const r = await searchFn({ request: new Request("https://x.pages.dev/api/search?q=cats"), env });
+    const d = await r.json();
+    assert.equal(d.videos[0].site, "vimeo");
+    assert.ok(seen.every((s) => s.auth === "Bearer hf_test"));
+    assert.match(seen[0].url, /^https:\/\/someone-meodeo-searxng\.hf\.space\/search\?q=cats&format=json/);
+    const h = await (await healthFn({ env })).json();
+    assert.equal(h.searxng, true);
+    const none = await (await healthFn({ env: {} })).json();
+    assert.equal(none.reason, "not-set");
+    assert.equal((await searchFn({ request: new Request("https://x.pages.dev/api/search?q=x"), env: {} })).status, 503);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });

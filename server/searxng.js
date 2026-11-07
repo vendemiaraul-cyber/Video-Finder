@@ -25,12 +25,13 @@ export const searxngList = (v) => String(v || "").split(",").map((s) => s.trim()
  * Is SearXNG reachable with its JSON API on?
  * @returns {Promise<{ok: boolean, url: string, reason?: string}>}
  */
-export async function checkSearxng(baseUrl, { fetchImpl = fetch, timeoutMs = 5000 } = {}) {
+export async function checkSearxng(baseUrl, { fetchImpl = fetch, timeoutMs = 8000, headers = {} } = {}) {
   const u = new URL("search", baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
   u.searchParams.set("q", "meodeo");
   u.searchParams.set("format", "json");
   try {
-    const res = await fetchImpl(u, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) });
+    const res = await fetchImpl(u, { headers: { accept: "application/json", ...headers }, signal: AbortSignal.timeout(timeoutMs) });
+    if (res.status === 401) return { ok: false, url: baseUrl, reason: "auth" };
     if (res.status === 403) return { ok: false, url: baseUrl, reason: "json-off" };
     if (res.status === 429) return { ok: false, url: baseUrl, reason: "limiter-on" };
     if (!res.ok) return { ok: false, url: baseUrl, reason: `http-${res.status}` };
@@ -56,14 +57,15 @@ export async function querySearxngAny(query, opts) {
 }
 
 /** Fetch one or more result pages from SearXNG. */
-export async function querySearxng(query, { baseUrl, pages = 2, categories = "videos", safesearch = 1, language = "all", fetchImpl = fetch, timeoutMs = 10000 }) {
+export async function querySearxng(query, { baseUrl, pages = 2, categories = "videos", safesearch = 1, language = "all", fetchImpl = fetch, timeoutMs = 15000, headers = {} }) {
   const results = [];
   const unresponsive = new Set();
   const replies = await Promise.allSettled(Array.from({ length: pages }, async (_, i) => {
     const u = new URL("search", baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
     Object.entries({ q: query, format: "json", categories, pageno: i + 1, safesearch, language })
       .forEach(([k, v]) => u.searchParams.set(k, v));
-    const res = await fetchImpl(u, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) });
+    const res = await fetchImpl(u, { headers: { accept: "application/json", ...headers }, signal: AbortSignal.timeout(timeoutMs) });
+    if (res.status === 401) throw new SearxngError("SearXNG refused the access token (check HF_TOKEN).");
     if (res.status === 403) throw new SearxngError("SearXNG refused JSON. Turn the JSON API on: add \"json\" under search.formats in its settings.yml.");
     if (res.status === 429) throw new SearxngError("SearXNG is rate limiting this server (its limiter is on). Turn server.limiter off for your own instance.");
     if (!res.ok) throw new SearxngError(`SearXNG answered HTTP ${res.status}`);

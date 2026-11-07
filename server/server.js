@@ -19,6 +19,7 @@ import { Gol } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
 import { querySearxngAny, toVideos, SearxngError, checkSearxng, searxngList } from "./searxng.js";
 import { searchYouTube } from "./youtube.js";
+import { fetchPage } from "./net.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC = ["index.html", "assets", "gol"]; // only these are served
@@ -76,7 +77,7 @@ export function createServer(cfg = config(), { fetchImpl = fetch } = {}) {
       baseUrl: cfg.searxngUrl, pages: cfg.pages, categories: cfg.categories, safesearch: cfg.safesearch, fetchImpl,
     });
     const { videos, stats } = await toVideos(results, {
-      gol, probeLimit: cfg.probeLimit, cache: probeCache, probeOpts: { allowPrivate: cfg.allowPrivate },
+      gol, probeLimit: cfg.probeLimit, cache: probeCache, probeOpts: { allowPrivate: cfg.allowPrivate, fetch: fetchPage },
     });
     const out = { query: q, videos, stats, unresponsive };
     searchCache.set(key, out);
