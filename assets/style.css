@@ -115,3 +115,5 @@ fieldset input, fieldset select { font: inherit; padding: 8px 10px; border: 1px 
 .cookie-hint { background: var(--bg); color: var(--text); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); }
 .radio { display: flex !important; align-items: flex-start; gap: 8px !important; font-weight: 500 !important; }
 .radio input { width: auto !important; margin-top: 2px; }
+.gol-flag { flex: none; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; padding: 0 5px; border-radius: 4px; border: 1px solid #c2410c; color: #c2410c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .gol-flag { border-color: #fb923c; color: #fb923c; } }

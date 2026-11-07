@@ -20,6 +20,7 @@ import sites from "../gol/sites/index.js";
 import { querySearxngAny, toVideos, SearxngError, checkSearxng, searxngList, skipList } from "./searxng.js";
 import { searchYouTube } from "./youtube.js";
 import { fetchPage } from "./net.js";
+import { MemoryPolicy } from "./site-policy.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC = ["index.html", "assets", "gol"]; // only these are served
@@ -30,7 +31,7 @@ export function config(env = process.env) {
     host: env.HOST || "127.0.0.1",
     searxngUrl: env.SEARXNG_URL || "http://127.0.0.1:8888",
     pages: Math.max(1, Math.min(5, +(env.SEARXNG_PAGES || 2))),
-    categories: env.SEARXNG_CATEGORIES || "videos,general",
+    categories: env.SEARXNG_CATEGORIES || "videos,news,general",
     skip: skipList(env.SEARXNG_SKIP),
     safesearch: env.SEARXNG_SAFESEARCH ?? "1",
     probeLimit: +(env.PROBE_LIMIT || 16),
@@ -63,6 +64,7 @@ export function createServer(cfg = config(), { fetchImpl = fetch } = {}) {
   const searchCache = new TTLCache(5 * 60_000, 200);
   const probeCache = new TTLCache(30 * 60_000, 3000);
   let health = null;
+  const policy = new MemoryPolicy();
 
   const send = (res, status, body, headers = {}) => {
     res.writeHead(status, { "access-control-allow-origin": cfg.allowOrigin, "x-content-type-options": "nosniff", ...headers });
@@ -78,7 +80,7 @@ export function createServer(cfg = config(), { fetchImpl = fetch } = {}) {
       baseUrl: cfg.searxngUrl, pages: cfg.pages, categories: cfg.categories, safesearch: cfg.safesearch, fetchImpl,
     });
     const { videos, stats } = await toVideos(results, {
-      gol, probeLimit: cfg.probeLimit, cache: probeCache, probeOpts: { allowPrivate: cfg.allowPrivate, fetch: fetchPage }, skip: cfg.skip,
+      gol, probeLimit: cfg.probeLimit, cache: probeCache, probeOpts: { allowPrivate: cfg.allowPrivate, fetch: fetchPage }, skip: cfg.skip, policy,
     });
     const out = { query: q, videos, stats, unresponsive };
     searchCache.set(key, out);

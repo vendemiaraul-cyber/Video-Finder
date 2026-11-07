@@ -7,6 +7,7 @@ import { Gol } from "../../gol/gol.js";
 import sites from "../../gol/sites/index.js";
 import { querySearxngAny, toVideos, SearxngError, skipList } from "../../server/searxng.js";
 import { workerFetchPage } from "../../server/worker-fetch.js";
+import { CachePolicy, D1Policy } from "../../server/site-policy.js";
 
 // Trim: keys pasted on a phone often pick up a space or line break.
 const clean = (v) => String(v || "").trim();
@@ -31,11 +32,14 @@ export async function onRequestGet({ request, env }) {
     const { results, unresponsive } = await querySearxngAny(q, {
       baseUrl: setting(env, "SEARXNG_URL"), pages: 1, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
       // videos + the general web: the probe keeps only pages that really offer a video
-      categories: setting(env, "SEARXNG_CATEGORIES") || "videos,general",
+      // videos, news (many news stories carry videos) and the general web
+      categories: setting(env, "SEARXNG_CATEGORIES") || "videos,news,general",
     });
     const { videos, stats } = await toVideos(results, {
       // 50 outside requests per search on the free plan: 1 went to SearXNG, keep a margin
-      gol, probeLimit: 24, concurrency: 8,
+      // remembers which sites allow or refuse embedding (D1 when set up, else Cloudflare's cache)
+      policy: env.DB ? new D1Policy(env.DB) : (globalThis.caches?.default ? new CachePolicy(caches.default) : undefined),
+      gol, probeLimit: 30, concurrency: 8,
       probeOpts: { fetch: (u, o) => workerFetchPage(u, { ...o, budget }), timeoutMs: 5000 },
       skip: skipList(setting(env, "SEARXNG_SKIP")),
     });

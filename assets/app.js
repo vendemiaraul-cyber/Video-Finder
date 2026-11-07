@@ -143,17 +143,20 @@ async function search(query) {
   els.status.textContent = `Searching ${ids.length} sources for “${query}”…`;
 
   const perSite = {};
+  const playsHere = (v) => v.play.kind !== "link" || !!v.play.inside || (v.needsCookies && settings.cookieMode !== "open");
   const draw = () => {
     if (id !== run) return;
-    const videos = interleave(ids.map((s) => perSite[s] || []));
+    let videos = interleave(ids.map((s) => perSite[s] || []));
+    if (settings.playableOnly === "on") videos = videos.filter(playsHere);
     els.results.replaceChildren(...videos.map((v) => card(v, { gol, onOpen: open })));
   };
-  const { videos, status } = await gol.search(query, {
+  let { videos, status } = await gol.search(query, {
     sites: ids, limit: ids.length === 1 ? 40 : 8,
     onPartial: (siteId, list) => { if (list) { perSite[siteId] = list; draw(); } },
   });
   if (id !== run) return;
   draw();
+  if (settings.playableOnly === "on") videos = videos.filter(playsHere);
   const websites = new Set(videos.map((v) => v.domain)).size;
   els.status.textContent = videos.length
     ? `${videos.length} videos from ${websites} websites for “${query}”`
@@ -218,6 +221,7 @@ function fillSettings() {
   const f = els.settingsForm;
   f.serverUrl.value = settings.serverUrl || "";
   for (const r of f.querySelectorAll('input[name="cookieMode"]')) r.checked = r.value === (settings.cookieMode || "inside");
+  f.playableOnly.checked = settings.playableOnly === "on";
   showServerState();
   const box = $("#site-keys");
   box.querySelectorAll("label").forEach((n) => n.remove());
@@ -255,12 +259,14 @@ els.settings.addEventListener("close", () => {
   const data = Object.fromEntries(new FormData(els.settingsForm));
   const next = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v).trim()]).filter(([, v]) => v));
   next.cookieMode = data.cookieMode === "open" ? "open" : "inside";
+  next.playableOnly = data.playableOnly ? "on" : "off";
   const serverChanged = (next.serverUrl || "") !== (settings.serverUrl || "");
   settings = next;
   store.set(STORE, settings);
   gol.keys = settings;
   renderFilters();
   if (serverChanged) checkServer();
+  if (els.q.value.trim()) search(els.q.value.trim()); // apply the new result settings
 });
 
 /* ---------- boot ---------- */

@@ -3,6 +3,7 @@
  * really offer a video, turning each into a Gol video.
  */
 import { probe, isoDuration } from "./probe.js";
+import { outcomeOf, refusesEmbedding } from "./site-policy.js";
 
 export class SearxngError extends Error {}
 
@@ -121,8 +122,8 @@ async function pool(items, limit, fn) {
  *  - links Gol recognises play in that site's official player right away
  *  - other links are probed; pages with no video are dropped
  */
-export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6, probeOpts = {}, cache, skip = new Set(DEFAULT_SKIP), perSite = 3 }) {
-  const stats = { results: results.length, recognised: 0, skipped: 0, probed: 0, kept: 0, dropped: 0, cookies: 0 };
+export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6, probeOpts = {}, cache, skip = new Set(DEFAULT_SKIP), perSite = 3, policy }) {
+  const stats = { results: results.length, recognised: 0, skipped: 0, probed: 0, remembered: 0, kept: 0, dropped: 0, cookies: 0 };
   let probes = 0;
   // Check results from video sources before general web pages: they're the
   // likeliest to have a playable video, and only probeLimit pages get checked.
@@ -155,6 +156,15 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
       stats.recognised++;
       return known;
     }
+    // A site remembered as refusing embedding: don't spend a check on it.
+    // Keep it (flagged "site only") if SearXNG listed it as a video, else drop it.
+    const siteHost = host(r.url);
+    if (policy && refusesEmbedding(await policy.get(siteHost))) {
+      stats.remembered++;
+      if (!isVideoResult(r)) return null;
+      const flagged = gol.fromUrl(r.url, clean(common));
+      return flagged ? { ...flagged, play: { kind: "link" }, embed: "refused" } : null;
+    }
     if (probes >= probeLimit) return null;
     probes++;
     stats.probed++;
@@ -163,6 +173,7 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
     if (p === undefined) {
       p = await probe(r.url, { gol, ...probeOpts });
       if (!(p && p.reason === "budget")) cache?.set(key, p);
+      if (policy) await policy.record(host(p?.finalUrl || r.url), outcomeOf(p));
     }
     if (!p) return null;
     const pageHost = host(p.finalUrl || r.url);
@@ -195,7 +206,9 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
     if (p.kind === "unreachable" && p.reason !== "blocked" && p.reason !== "budget") return { ...web, play: { kind: "link" } };
     return null;
   });
-  const kept = videos.filter(Boolean);
+  // Videos that play in MeoDeo first, then pages that open inside it, then site-only.
+  const rank = (v) => (v.play.kind !== "link" ? 0 : v.play.inside ? 1 : 2);
+  const kept = videos.filter(Boolean).map((v, i) => [v, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([v]) => v);
   stats.kept = kept.length;
   stats.dropped = results.length - kept.length;
   return { videos: kept, stats };

@@ -67,7 +67,12 @@ export function card(video, { gol, onOpen } = {}) {
         el("a", { class: "gol-domain", href: video.url, target: "_blank", rel: "noopener noreferrer",
                   text: video.domain, onclick: (e) => e.stopPropagation() }),
         video.ads ? el("span", { class: "gol-ads", title: "This site shows its own ads in its player", text: "ads" }) : null,
-        video.needsCookies ? el("span", { class: "gol-cookies", title: "This site needs its own cookies, so it opens on the site", text: "🍪 cookies" }) : null,
+        video.needsCookies ? el("span", { class: "gol-cookies", title: "This site needs its own cookies", text: "🍪 cookies" }) : null,
+        video.play.kind === "link" && !video.play.inside && !video.needsCookies
+          ? el("span", { class: "gol-flag", title: video.embed === "refused"
+              ? "This website refuses to let its videos play on other sites (remembered from earlier checks)"
+              : "This website doesn't let its videos play on other sites", text: "site only" })
+          : null,
       ),
     ),
   );

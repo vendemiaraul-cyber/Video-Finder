@@ -364,3 +364,34 @@ test("the Cloudflare request budget stops page checks cleanly", async () => {
   const { videos } = await toVideos([{ url: "https://news.example/x" }], { gol, probeOpts: { fetch: async () => { throw Object.assign(new Error("x"), { code: "EBUDGET" }); } } });
   assert.equal(videos.length, 0);
 });
+
+import { MemoryPolicy, outcomeOf, refusesEmbedding } from "../server/site-policy.js";
+
+test("sites that refuse embedding are remembered and not checked again", async () => {
+  const policy = new MemoryPolicy();
+  await policy.record("blocked.example", "blocked");
+  await policy.record("blocked.example", "blocked");
+  assert.ok(refusesEmbedding(await policy.get("blocked.example")));
+  let probes = 0;
+  const fetch = async (url) => { probes++; return { status: 200, headers: {}, body: "", url, chain: [url] }; };
+  const { videos, stats } = await toVideos([
+    { url: "https://blocked.example/v/1", title: "Video result", category: "videos" },
+    { url: "https://blocked.example/article", title: "Web result", category: "general" },
+  ], { gol, policy, probeOpts: { fetch } });
+  assert.equal(probes, 0);
+  assert.equal(stats.remembered, 2);
+  assert.deepEqual(videos.map((v) => [v.url, v.play.kind, v.embed]), [["https://blocked.example/v/1", "link", "refused"]]);
+  assert.equal(outcomeOf({ kind: "iframe" }), "allowed");
+  assert.equal(outcomeOf({ kind: "link", inside: "https://x" }), "inside");
+  assert.ok(!refusesEmbedding({ blocked: 5, allowed: 1 }));
+});
+
+test("videos that play in MeoDeo come first", async () => {
+  const cache = new Map([
+    ["probe:https://a.example/1", { kind: "link" }],
+    ["probe:https://b.example/1", { kind: "file", sources: [{ src: "https://b.example/v.mp4", type: "video/mp4" }] }],
+    ["probe:https://c.example/1", { kind: "link", inside: "https://c.example/1" }],
+  ]);
+  const { videos } = await toVideos([{ url: "https://a.example/1" }, { url: "https://b.example/1" }, { url: "https://c.example/1" }], { gol, cache, probeOpts: { fetch: fetchPage } });
+  assert.deepEqual(videos.map((v) => v.domain), ["b.example", "c.example", "a.example"]);
+});
