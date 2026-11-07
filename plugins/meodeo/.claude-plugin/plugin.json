@@ -1,0 +1,8 @@
+{
+  "name": "meodeo",
+  "version": "0.1.0",
+  "description": "Search videos across many websites through MeoDeo (Gol + SearXNG): YouTube, Dailymotion, PeerTube, Odysee, Vimeo and more.",
+  "author": { "name": "vendemiaraul-cyber" },
+  "homepage": "https://video-finder.pages.dev",
+  "repository": "https://github.com/vendemiaraul-cyber/Video-Finder"
+}

@@ -93,6 +93,15 @@ The server only opens public web pages: it refuses private and local network add
 
 On GitHub Pages (no server), MeoDeo still searches the other websites directly. To add SearXNG there, run the MeoDeo server and put its address in ⚙ Settings → SearXNG.
 
+## Use MeoDeo from Claude (skill)
+
+The `meodeo-video-search` skill lets Claude search videos through MeoDeo in any project.
+
+- **claude.ai / Claude apps:** save the `meodeo-video-search.skill` file (Save skill), or upload the `plugins/meodeo/skills/meodeo-video-search` folder as a zip under Settings → Skills.
+- **Claude Code, any project:** `/plugin marketplace add vendemiaraul-cyber/Video-Finder`, then `/plugin install meodeo@meodeo`.
+
+It calls `https://video-finder.pages.dev/api/search`, `/api/youtube` and `/api/health` (set `MEODEO_URL` for another deployment).
+
 ## Publish on Cloudflare Pages (free, no card)
 
 1. On **dash.cloudflare.com**, open **Workers & Pages → Create → Pages → Connect to Git**, and pick **Video-Finder**.

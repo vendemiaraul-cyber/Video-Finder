@@ -1,0 +1,11 @@
+{
+  "name": "meodeo",
+  "owner": { "name": "vendemiaraul-cyber" },
+  "plugins": [
+    {
+      "name": "meodeo",
+      "source": "./plugins/meodeo",
+      "description": "MeoDeo video search skill: find videos across many websites with official embeds."
+    }
+  ]
+}
