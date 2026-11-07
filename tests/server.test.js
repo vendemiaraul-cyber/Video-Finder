@@ -275,3 +275,12 @@ test("the Cloudflare SearXNG functions use SEARXNG_URL and the Hugging Face toke
     globalThis.fetch = realFetch;
   }
 });
+
+test("Cloudflare settings saved with a number (SEARXNG_URL1) still work", async () => {
+  const { setting, authHeaders } = await import("../functions/api/search.js");
+  const env = { SEARXNG_URL1: " https://meodeo-searxng.onrender.com/ ", SEARXNG_KEY1: "abc\n" };
+  assert.equal(setting(env, "SEARXNG_URL"), "https://meodeo-searxng.onrender.com/");
+  assert.deepEqual(authHeaders(env), { "x-meodeo-key": "abc" });
+  assert.equal(setting({ SEARXNG_URL: "a", SEARXNG_URL1: "b" }, "SEARXNG_URL"), "a");
+  assert.equal(setting({ SEARXNG_URLX: "b" }, "SEARXNG_URL"), "");
+});

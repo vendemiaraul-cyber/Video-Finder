@@ -10,19 +10,25 @@ import { workerFetchPage } from "../../server/worker-fetch.js";
 
 // Trim: keys pasted on a phone often pick up a space or line break.
 const clean = (v) => String(v || "").trim();
+/** env.NAME, or a numbered copy such as NAME1 (Cloudflare suggests one when a name is taken). */
+export function setting(env, name) {
+  if (clean(env[name])) return clean(env[name]);
+  const alt = Object.keys(env).filter((k) => new RegExp(`^${name}_?\\d+$`).test(k)).sort()[0];
+  return alt ? clean(env[alt]) : "";
+}
 export const authHeaders = (env) => ({
-  ...(clean(env.SEARXNG_KEY) ? { "x-meodeo-key": clean(env.SEARXNG_KEY) } : {}),
-  ...(clean(env.HF_TOKEN) ? { authorization: `Bearer ${clean(env.HF_TOKEN)}` } : {}),
+  ...(setting(env, "SEARXNG_KEY") ? { "x-meodeo-key": setting(env, "SEARXNG_KEY") } : {}),
+  ...(setting(env, "HF_TOKEN") ? { authorization: `Bearer ${setting(env, "HF_TOKEN")}` } : {}),
 });
 
 export async function onRequestGet({ request, env }) {
   const q = (new URL(request.url).searchParams.get("q") || "").trim();
   if (!q || q.length > 300) return Response.json({ error: "missing or too long q" }, { status: 400 });
-  if (!env.SEARXNG_URL) return Response.json({ error: "SEARXNG_URL is not set in this Cloudflare project" }, { status: 503 });
+  if (!setting(env, "SEARXNG_URL")) return Response.json({ error: "SEARXNG_URL is not set in this Cloudflare project" }, { status: 503 });
   const gol = new Gol().register(sites);
   try {
     const { results, unresponsive } = await querySearxngAny(q, {
-      baseUrl: clean(env.SEARXNG_URL), pages: 2, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
+      baseUrl: setting(env, "SEARXNG_URL"), pages: 2, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
     });
     const { videos, stats } = await toVideos(results, {
       gol, probeLimit: 8, concurrency: 4, probeOpts: { fetch: workerFetchPage, timeoutMs: 5000 },
