@@ -78,10 +78,47 @@ export function card(video, { gol, onOpen } = {}) {
  * Mount a player for `video` into `container` (replacing its contents).
  * Returns a function that stops playback.
  */
-export function player(video, container, { gol } = {}) {
+// hls.js (open source, Apache-2.0) plays HLS streams in browsers without native HLS.
+const HLS_URL = "https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js";
+let hlsPromise = null;
+function loadHls() {
+  if (globalThis.Hls) return Promise.resolve(globalThis.Hls);
+  hlsPromise ||= new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = HLS_URL;
+    s.onload = () => (globalThis.Hls ? resolve(globalThis.Hls) : reject(new Error("hls.js missing")));
+    s.onerror = () => { hlsPromise = null; reject(new Error("hls.js blocked")); };
+    document.head.append(s);
+  });
+  return hlsPromise;
+}
+const isHls = (s) => /mpegurl/i.test(s.type || "") || /\.m3u8(\?|#|$)/i.test(s.src);
+
+const PAGE_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-storage-access-by-user-activation";
+const IFRAME_ALLOW = "autoplay; encrypted-media; picture-in-picture; fullscreen; clipboard-write; storage-access";
+
+/** A whole web page shown inside MeoDeo (e.g. to accept its cookies there). */
+function pageFrame(video, src) {
+  return el("iframe", { src, title: video.title, allowfullscreen: true, allow: IFRAME_ALLOW,
+                        referrerpolicy: "strict-origin-when-cross-origin", sandbox: PAGE_SANDBOX });
+}
+
+/**
+ * Mount a player for `video` into `container` (replacing its contents).
+ * Options: gol, cookieMode ("inside" plays cookie-needing videos in MeoDeo,
+ * "open" leaves them to the site itself).
+ * Returns a function that stops playback.
+ */
+export function player(video, container, { gol, cookieMode = "inside" } = {}) {
   container.replaceChildren();
   container.classList.remove("gol-vertical");
   const { play } = video;
+  const fallback = () => container.replaceChildren(linkPanel(video, container));
+  // Cookie-needing page that may be shown inside MeoDeo: open it right here.
+  if (video.needsCookies && cookieMode === "inside" && play.kind === "link" && play.inside) {
+    container.append(pageFrame(video, play.inside.src));
+    return () => container.replaceChildren();
+  }
   // A site can bring its own player (e.g. YouTube's IFrame Player API).
   const site = gol?.sites.get(video.site);
   if (play.kind === "iframe" && site?.mount) return site.mount(video, container) || (() => container.replaceChildren());
@@ -91,7 +128,8 @@ export function player(video, container, { gol } = {}) {
     const sandboxed = gol?.sites.get(video.site)?.sandboxed;
     container.append(el("iframe", {
       src, title: video.title, allowfullscreen: true,
-      allow: "autoplay; encrypted-media; picture-in-picture; fullscreen; clipboard-write",
+      // storage-access lets the embedded site use its own cookies (sign-in, consent)
+      allow: IFRAME_ALLOW,
       // Some players (YouTube) refuse to play without a referrer.
       referrerpolicy: "strict-origin-when-cross-origin",
       // Players from websites Gol has no definition for can't navigate MeoDeo away.
@@ -100,17 +138,45 @@ export function player(video, container, { gol } = {}) {
   } else if (play.kind === "video") {
     const v = el("video", { controls: true, autoplay: true, playsinline: true, preload: "metadata",
                             poster: video.thumbnail });
-    for (const s of play.sources) v.append(el("source", { src: s.src, type: s.type }));
+    let hls = null;
+    const hlsSource = play.sources.find(isHls);
+    if (hlsSource && !v.canPlayType("application/vnd.apple.mpegurl")) {
+      // Chrome, Firefox, Android: play the HLS stream with hls.js
+      loadHls().then((Hls) => {
+        if (!Hls.isSupported()) return fallback();
+        hls = new Hls();
+        hls.on(Hls.Events.ERROR, (_e, data) => { if (data.fatal) { hls.destroy(); fallback(); } });
+        hls.loadSource(hlsSource.src);
+        hls.attachMedia(v);
+      }).catch(fallback);
+    } else {
+      for (const s of play.sources) v.append(el("source", { src: s.src, type: s.type }));
+    }
+    // The file can't be played here (format, blocked by the site...): offer the site instead.
+    v.addEventListener("error", fallback, true);
     container.append(v);
+    return () => { try { hls?.destroy(); } catch { /* gone */ } container.replaceChildren(); };
   } else {
-    container.append(el("div", { class: "gol-linkpanel" },
-      video.thumbnail ? el("img", { src: video.thumbnail, alt: "", referrerpolicy: "no-referrer" }) : null,
-      el("p", { text: video.needsCookies
-        ? `${video.domain} needs its own cookies (consent or sign-in), so this video only plays on the site itself.`
-        : `${video.domain} doesn't allow its videos to be played on other websites.` }),
-      el("a", { class: "gol-button", href: video.url, target: "_blank", rel: "noopener noreferrer",
-                text: `Watch on ${video.domain} ↗` }),
-    ));
+    container.append(linkPanel(video, container));
   }
   return () => container.replaceChildren();
+}
+
+/** "Watch on site" panel, with "Play here" when the page may be shown inside MeoDeo. */
+function linkPanel(video, container) {
+  const inside = video.play.inside;
+  return el("div", { class: "gol-linkpanel" },
+    video.thumbnail ? el("img", { src: video.thumbnail, alt: "", referrerpolicy: "no-referrer" }) : null,
+    el("p", { text: video.needsCookies
+      ? `${video.domain} needs its own cookies (consent or sign-in).` + (inside ? " You can open it here and accept them, or watch on the site." : " It only plays on the site itself.")
+      : inside
+        ? `${video.domain} has no embeddable player, but you can open its page here.`
+        : `${video.domain} doesn't allow its videos to be played on other websites.` }),
+    el("div", { class: "gol-actions" },
+      inside ? el("button", { class: "gol-button", type: "button", text: "Play here",
+                              onclick: () => container.replaceChildren(pageFrame(video, inside.src)) }) : null,
+      el("a", { class: "gol-button" + (inside ? " gol-button-alt" : ""), href: video.url, target: "_blank", rel: "noopener noreferrer",
+                text: `Watch on ${video.domain} ↗` }),
+    ),
+  );
 }

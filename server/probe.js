@@ -4,18 +4,26 @@
  *
  *   1. the page embeds a video from a site Gol knows (e.g. a news article
  *      with a YouTube player)      -> that site's official player
+ *   1b. the site publishes its official player through oEmbed (the open
+ *      standard; provider list from oembed.com, or the page's own oEmbed tag)
  *   2. the page announces its own player (og:video, twitter:player,
  *      JSON-LD VideoObject) and the player allows embedding -> that player
- *   3. the page links a plain video file (mp4/webm)        -> browser player
+ *   3. the page links a plain video file (mp4/webm) or an HLS stream (m3u8)
+ *                                                          -> browser player (hls.js for HLS)
  *   4. the page shows a video but blocks embedding         -> "watch on site"
  *   5. the page hides behind a cookie wall / consent / login -> needsCookies
  *   6. no video at all                                     -> dropped
+ *
+ * For 4 and 5, when the page itself may be shown inside another site, the
+ * result carries `inside` (the page URL), so MeoDeo can open it in its player
+ * and the viewer can accept the site's cookies right there.
  */
+import { endpointFor, fetchOembed } from "./oembed.js";
 
 const COOKIE_PATH = /(^|[./_-])(consent|cookies?|gdpr|privacy-?gate|login|log-in|signin|sign-in|sign_in|accounts?|auth|captcha|challenge)([./_?-]|$)/i;
 const COOKIE_TEXT = /(please\s+)?(enable|accept|allow)\s+(all\s+)?cookies|cookies\s+(are|is)\s+(disabled|required|blocked)|requires?\s+cookies|cookie[\s_-]?wall|consent\.(google|youtube|yahoo)\.com|you\s+must\s+(be\s+)?(logged|signed)\s+in/i;
-const FILE_TYPE = /^video\/(mp4|webm|ogg)$/i;
-const FILE_EXT = /\.(mp4|webm|ogv|m4v)(\?|#|$)/i;
+const FILE_TYPE = /^(video\/(mp4|webm|ogg)|application\/(x-mpegurl|vnd\.apple\.mpegurl))$/i;
+const FILE_EXT = /\.(mp4|webm|ogv|m4v|m3u8)(\?|#|$)/i;
 
 /** Pull the video-related metadata out of a page's HTML. */
 export function extract(html, baseUrl) {
@@ -63,6 +71,10 @@ export function extract(html, baseUrl) {
   for (const m of html.matchAll(/<iframe\b[^>]*\bsrc=["']([^"']+)["']/gi)) {
     const u = abs(decode(m[1]));
     if (u) out.iframes.push(u);
+  }
+  // oEmbed discovery: <link rel="alternate" type="application/json+oembed" href="...">
+  for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
+    if (/application\/json\+oembed/i.test(m[0])) { out.oembed = abs(decode(attr(m[0], "href") || "")); break; }
   }
   out.embeds = [...new Set(out.embeds.filter(Boolean))];
   out.files = [...new Set(out.files.filter(Boolean))];
@@ -117,6 +129,20 @@ export async function probe(url, { gol, fetch, allowPrivate = false, timeoutMs =
     const v = gol.fromUrl(src);
     if (v && v.site !== "web") return { ...base, kind: "gol", video: v };
   }
+  // 1b. the site's official player through oEmbed
+  const oe = info.oembed || endpointFor(url)?.url || (res.url !== url ? endpointFor(res.url)?.url : null);
+  if (oe && /^https:/.test(oe)) {
+    const player = await fetchOembed(oe, fetch, { timeoutMs, allowPrivate });
+    if (player) {
+      const meta = { ...base, title: base.title || player.title, thumbnail: base.thumbnail || player.thumbnail, channel: base.channel || player.channel };
+      const known = gol.fromUrl(player.src);
+      if (known && known.site !== "web") return { ...meta, kind: "gol", video: known };
+      try {
+        const head = await fetch(player.src, { timeoutMs, allowPrivate, maxBytes: 20000 });
+        if (head.status >= 200 && head.status < 300 && allowsFraming(head.headers)) return { ...meta, kind: "iframe", src: player.src, via: "oembed" };
+      } catch { /* fall through to the page's own data */ }
+    }
+  }
   // 2. the page's own player, if it may be framed
   for (const src of info.embeds) {
     if (!/^https:/.test(src)) continue;
@@ -129,10 +155,12 @@ export async function probe(url, { gol, fetch, allowPrivate = false, timeoutMs =
   // 3. plain video files
   const files = info.files.filter((f) => /^https:/.test(f));
   if (files.length) return { ...base, kind: "file", sources: files.slice(0, 2).map((src) => ({ src, type: mime(src) })) };
+  // Can the page itself be shown inside MeoDeo (no frame-blocking headers)?
+  const inside = res.status >= 200 && res.status < 400 && /^https:/.test(res.url) && allowsFraming(res.headers) ? res.url : undefined;
   // 5. cookie wall: the page didn't show us any video, but asked for cookies / consent / login
-  if (!info.hasVideo && looksLikeCookieWall(res, url)) return { ...base, kind: "cookies" };
+  if (!info.hasVideo && looksLikeCookieWall(res, url)) return { ...base, kind: "cookies", inside };
   // 4. a video we can't embed
-  if (info.hasVideo) return { ...base, kind: "link" };
+  if (info.hasVideo) return { ...base, kind: "link", inside };
   if (res.status >= 400) return { ...base, kind: "unreachable", reason: `HTTP ${res.status}` };
   // 6. nothing to watch here
   return null;
@@ -166,4 +194,4 @@ export function isoDuration(s) {
   const t = (+m[1] || 0) * 86400 + (+m[2] || 0) * 3600 + (+m[3] || 0) * 60 + Math.round(+m[4] || 0);
   return t || undefined;
 }
-const mime = (u) => (/\.webm/i.test(u) ? "video/webm" : /\.ogv/i.test(u) ? "video/ogg" : "video/mp4");
+const mime = (u) => (/\.m3u8/i.test(u) ? "application/vnd.apple.mpegurl" : /\.webm/i.test(u) ? "video/webm" : /\.ogv/i.test(u) ? "video/ogg" : "video/mp4");

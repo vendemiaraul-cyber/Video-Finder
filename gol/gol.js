@@ -191,7 +191,11 @@ export function isHttps(url) {
 
 /** A player may only point at https URLs on hosts the site definition allows. */
 export function isSafePlay(site, play) {
-  if (play.kind === "link") return true;
+  if (play.kind === "link") {
+    // optional: the page itself, shown inside MeoDeo (only for sites without a definition)
+    if (!play.inside) return true;
+    return play.inside.kind === "iframe" && isHttps(play.inside.src) && (site.embedHosts || []).includes("*");
+  }
   if (play.kind === "iframe") {
     if (!isHttps(play.src.replace("{parent}", "localhost"))) return false;
     const u = new URL(play.src.replace("{parent}", "localhost"));

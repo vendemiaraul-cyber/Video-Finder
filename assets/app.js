@@ -5,7 +5,7 @@ import { card, player, badge, formatCount } from "../gol/render.js";
 const $ = (s) => document.querySelector(s);
 const STORE = "meodeo.settings.v2";
 const PREFS = "meodeo.sites.v1";
-const DEFAULTS = { autoOpenCookies: "on" };
+const DEFAULTS = { cookieMode: "inside" };
 
 // Settings live only in this browser. Storage can be unavailable (private
 // mode, blocked site data), so every access is guarded.
@@ -180,8 +180,8 @@ function skeletons(n) {
 /* ---------- opening a video ---------- */
 
 function open(video) {
-  // Sites that need their own cookies can't work inside MeoDeo: open them there.
-  if (video.needsCookies && settings.autoOpenCookies === "on") {
+  // Videos that need their site's cookies: open on that site if the viewer chose so.
+  if (video.needsCookies && settings.cookieMode === "open") {
     window.open(video.url, "_blank", "noopener,noreferrer");
     return;
   }
@@ -200,7 +200,10 @@ function openPlayer(video) {
   const link = $("#player-link");
   link.href = video.url;
   link.textContent = `Watch on ${video.domain} ↗`;
-  stopPlayer = player(video, els.frame, { gol });
+  const hint = $("#player-hint");
+  hint.hidden = !(video.needsCookies && settings.cookieMode !== "open");
+  hint.textContent = hint.hidden ? "" : `🍪 ${video.domain} needs its cookies: accept them or sign in inside the player.`;
+  stopPlayer = player(video, els.frame, { gol, cookieMode: settings.cookieMode || "inside" });
   els.player.showModal();
 }
 
@@ -214,7 +217,7 @@ els.player.addEventListener("click", (e) => { if (e.target === els.player) els.p
 function fillSettings() {
   const f = els.settingsForm;
   f.serverUrl.value = settings.serverUrl || "";
-  f.autoOpenCookies.checked = settings.autoOpenCookies === "on";
+  for (const r of f.querySelectorAll('input[name="cookieMode"]')) r.checked = r.value === (settings.cookieMode || "inside");
   showServerState();
   const box = $("#site-keys");
   box.querySelectorAll("label").forEach((n) => n.remove());
@@ -241,7 +244,7 @@ $("#check-server").addEventListener("click", () => {
   checkServer({ fresh: true });
 });
 $("#clear-keys").addEventListener("click", () => {
-  settings = { ...DEFAULTS, serverUrl: settings.serverUrl, autoOpenCookies: settings.autoOpenCookies };
+  settings = { ...DEFAULTS, serverUrl: settings.serverUrl, cookieMode: settings.cookieMode };
   store.set(STORE, settings);
   gol.keys = settings;
   fillSettings();
@@ -251,7 +254,7 @@ els.settings.addEventListener("close", () => {
   if (els.settings.returnValue !== "save") return;
   const data = Object.fromEntries(new FormData(els.settingsForm));
   const next = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v).trim()]).filter(([, v]) => v));
-  next.autoOpenCookies = data.autoOpenCookies ? "on" : "off";
+  next.cookieMode = data.cookieMode === "open" ? "open" : "inside";
   const serverChanged = (next.serverUrl || "") !== (settings.serverUrl || "");
   settings = next;
   store.set(STORE, settings);

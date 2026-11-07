@@ -109,3 +109,9 @@ fieldset input, fieldset select { font: inherit; padding: 8px 10px; border: 1px 
 .help ol { padding-left: 20px; display: grid; gap: 4px; }
 .help code, .hint code { font-size: 12px; background: var(--bg); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
 .secondary { justify-self: start; font: inherit; font-weight: 600; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+.gol-actions { position: relative; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.gol-button { border: 0; font: inherit; cursor: pointer; }
+.gol-button-alt { background: rgba(255,255,255,.15) !important; }
+.cookie-hint { background: var(--bg); color: var(--text); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); }
+.radio { display: flex !important; align-items: flex-start; gap: 8px !important; font-weight: 500 !important; }
+.radio input { width: auto !important; margin-top: 2px; }

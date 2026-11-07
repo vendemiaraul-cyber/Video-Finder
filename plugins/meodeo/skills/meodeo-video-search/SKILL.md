@@ -45,7 +45,7 @@ SearXNG runs on a free server that sleeps after 15 minutes without use. The firs
 
 - `domain` is the website the video really lives on (for PeerTube, the specific server). Always show it, so people know where a video comes from.
 - `via: "searxng"` marks videos found through SearXNG. Label those "SearXNG Results" (with the domain next to it) rather than with the site's name, the way MeoDeo does.
-- `play` says how to show it: `iframe` (that site's official embed player), `video` (a plain file: `play.sources[].src`), or `link` (the site doesn't allow embedding, so link to `url`).
+- `play` says how to show it: `iframe` (that site's official embed player, sometimes found through oEmbed), `video` (a plain file or an HLS `.m3u8` stream: `play.sources[].src`; use hls.js where the browser lacks native HLS), or `link` (no embeddable player: link to `url`). A `link` may carry `play.inside`, the page itself, which allows being shown in an iframe.
 - `ads: true` means the site shows its own ads in its player. Keep embeds on the official player so those ads, and the creator's income, stay intact. Never strip or re-host the video.
 - `needsCookies: true` means the site only plays with its own cookies (consent or sign-in). Link to `url` instead of embedding.
 - `duration` is in seconds.

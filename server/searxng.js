@@ -186,8 +186,10 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
     if (!web) return null;
     if (p.kind === "iframe") return { ...web, play: { kind: "iframe", src: p.src } };
     if (p.kind === "file") return { ...web, play: { kind: "video", sources: p.sources } };
-    if (p.kind === "cookies") { stats.cookies++; return { ...web, needsCookies: true, play: { kind: "link" } }; }
-    if (p.kind === "link") return { ...web, play: { kind: "link" } };
+    // "inside": the page itself may be shown in MeoDeo's player (to accept its cookies there)
+    const insidePlay = p.inside ? { inside: { kind: "iframe", src: p.inside } } : {};
+    if (p.kind === "cookies") { stats.cookies++; return { ...web, needsCookies: true, play: { kind: "link", ...insidePlay } }; }
+    if (p.kind === "link") return { ...web, play: { kind: "link", ...insidePlay } };
     // unreachable from the server (timeout, blocked): SearXNG listed it as a video, so keep it as a link
     if (p.kind === "unreachable" && p.reason !== "blocked") return { ...web, play: { kind: "link" } };
     return null;

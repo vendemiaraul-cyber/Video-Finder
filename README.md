@@ -41,7 +41,13 @@ Type what you want to watch. MeoDeo asks lots of video websites at the same time
    - a page with no video at all is dropped
 4. Pages behind a cookie wall, consent page or sign-in are marked **🍪 cookies**.
 
-**Cookies setting (⚙ Settings → 🍪 Cookies, on by default):** a video that needs its site's own cookies can't work inside MeoDeo, so it opens straight on its own website in a new tab, where your cookies and sign-in work. Turn it off to see MeoDeo's "watch on site" panel instead.
+**Playing other websites' videos inside MeoDeo** (all open standards and open-source tools):
+- **oEmbed**: the official embed player a site publishes, found through the site's own oEmbed tag or the [oembed.com provider list](https://oembed.com/providers.json) (kept in `gol/oembed-providers.js`; refresh with `node scripts/update-oembed-providers.mjs`).
+- **HLS streams** (`.m3u8`, used by many news and TV sites) play with [hls.js](https://github.com/video-dev/hls.js) where the browser has no native HLS.
+- **"Play here"**: when a page has no embeddable player but allows being shown inside other sites, MeoDeo can open the page itself in its player.
+- MeoDeo never pulls a video out of a site's player or works around a site's embedding rules, so sites' ads and protections stay as they are.
+
+**Cookies setting (⚙ Settings → 🍪 Cookies):** some sites only play after you accept their cookies or sign in. By default MeoDeo plays those **inside its player**, where you accept the site's cookies or sign in (embedded players get the browser's Storage Access permission). Choose "Open them on their own website" to open them in a new tab instead. Safari limits cookies inside other sites more than other browsers; "Watch on …" under the player always works.
 
 ### Turn SearXNG on: one command
 

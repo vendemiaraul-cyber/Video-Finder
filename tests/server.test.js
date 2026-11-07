@@ -306,3 +306,51 @@ test("at most 3 SearXNG results per website", async () => {
   const { videos } = await toVideos(results, { gol, probeOpts: { fetch: fetchPage } });
   assert.equal(videos.length, 3);
 });
+
+import { endpointFor, iframeSrc } from "../server/oembed.js";
+
+const fakeFetch = (routes) => async (url) => {
+  const r = Object.entries(routes).find(([k]) => url.startsWith(k));
+  if (!r) return { status: 404, headers: {}, body: "", url, chain: [url] };
+  const { status = 200, headers = {}, body = "" } = r[1];
+  return { status, headers, body, url, chain: [url] };
+};
+
+test("oEmbed: a page's own oEmbed tag gives its official player", async () => {
+  const fetch = fakeFetch({
+    "https://news.example/story": { body: `<title>Story</title><link rel="alternate" type="application/json+oembed" href="https://news.example/oembed?url=x">` },
+    "https://news.example/oembed": { body: JSON.stringify({ type: "video", title: "Clip", html: '<iframe src="https://player.news.example/e/42" allowfullscreen></iframe>' }) },
+    "https://player.news.example/e/42": { body: "<html>player</html>" },
+  });
+  const p = await probe("https://news.example/story", { gol, fetch });
+  assert.equal(p.kind, "iframe");
+  assert.equal(p.src, "https://player.news.example/e/42");
+  assert.equal(p.via, "oembed");
+});
+
+test("oEmbed: provider list lookups and iframe extraction", () => {
+  assert.equal(endpointFor("https://www.ted.com/talks/some_talk").provider, "TED");
+  assert.equal(endpointFor("https://example.org/not-a-provider"), null);
+  assert.equal(iframeSrc('<iframe width="1" src="//p.example/e?a=1&amp;b=2">'), "https://p.example/e?a=1&b=2");
+});
+
+test("HLS streams count as playable files", async () => {
+  const fetch = fakeFetch({ "https://tv.example/show": { body: `<meta property="og:video" content="https://cdn.tv.example/live/master.m3u8"><meta property="og:video:type" content="application/x-mpegURL">` } });
+  const p = await probe("https://tv.example/show", { gol, fetch });
+  assert.equal(p.kind, "file");
+  assert.equal(p.sources[0].type, "application/vnd.apple.mpegurl");
+});
+
+test("pages offer 'inside' only when they allow being framed", async () => {
+  const page = `<script type="application/ld+json">{"@type":"VideoObject","name":"V","embedUrl":"https://blocked.example/e/1"}</script>`;
+  const open = await probe("https://site.example/v", { gol, fetch: fakeFetch({
+    "https://site.example/v": { body: page }, "https://blocked.example/e/1": { headers: { "x-frame-options": "DENY" } } }) });
+  assert.equal(open.kind, "link");
+  assert.equal(open.inside, "https://site.example/v");
+  const closed = await probe("https://site2.example/v", { gol, fetch: fakeFetch({
+    "https://site2.example/v": { body: page, headers: { "content-security-policy": "frame-ancestors 'self'" } }, "https://blocked.example/e/1": { headers: { "x-frame-options": "DENY" } } }) });
+  assert.equal(closed.kind, "link");
+  assert.equal(closed.inside, undefined);
+  const { videos } = await toVideos([{ url: "https://site.example/v", title: "V" }], { gol, cache: new Map([["probe:https://site.example/v", open]]), probeOpts: { fetch: fetchPage } });
+  assert.deepEqual(videos[0].play, { kind: "link", inside: { kind: "iframe", src: "https://site.example/v" } });
+});
