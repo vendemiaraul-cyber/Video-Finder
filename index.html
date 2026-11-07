@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MeoDeo</title>
+  <meta name="description" content="Search videos across many websites at once. Powered by Gol and SearXNG.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="26" height="26"> MeoDeo</a>
+    <form id="search-form" class="search" role="search">
+      <input id="q" name="q" type="search" placeholder="Search videos on every site…" maxlength="300" autocomplete="off" autofocus>
+      <button type="submit">Search</button>
+    </form>
+    <button id="open-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings">⚙</button>
+    <div id="site-filters" class="filters" aria-label="Websites to search"></div>
+  </header>
+
+  <main>
+    <p id="status" class="status" aria-live="polite"></p>
+    <section>
+      <ul id="site-status" class="site-status"></ul>
+      <div id="results" class="grid"></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    MeoDeo · powered by <a href="https://github.com/vendemiaraul-cyber/Video-Finder/tree/main/gol" target="_blank" rel="noopener">Gol</a> ·
+    videos play in each website's own player and stay on that website
+  </footer>
+
+  <dialog id="player" aria-labelledby="player-title">
+    <div class="player-head">
+      <span id="player-badge"></span>
+      <h2 id="player-title"></h2>
+      <button id="player-close" class="icon-btn" type="button" aria-label="Close">✕</button>
+    </div>
+    <div id="player-frame" class="frame-wrap"></div>
+    <div class="player-foot">
+      <span id="player-meta"></span>
+      <span id="player-ads" class="ads-note" hidden></span>
+      <a id="player-link" target="_blank" rel="noopener noreferrer"></a>
+    </div>
+  </dialog>
+
+  <dialog id="settings" aria-labelledby="settings-title">
+    <form method="dialog" id="settings-form">
+      <div class="player-head">
+        <h2 id="settings-title">Settings</h2>
+        <button class="icon-btn" value="cancel" aria-label="Close">✕</button>
+      </div>
+      <div class="settings-body">
+        <fieldset>
+          <legend>SearXNG</legend>
+          <label>MeoDeo server address
+            <input type="url" name="serverUrl" autocomplete="off" placeholder="empty = this website (e.g. http://localhost:8787)">
+          </label>
+          <p class="hint" id="server-state">SearXNG search runs through the MeoDeo Node server (<code>npm start</code>). Leave the address empty when you open MeoDeo from that server.</p>
+        </fieldset>
+        <fieldset>
+          <legend>🍪 Cookies</legend>
+          <label class="check"><input type="checkbox" name="autoOpenCookies" value="on">
+            <span>Open videos that need cookies (consent or sign-in) straight on their own website</span></label>
+          <p class="hint">Some sites only play a video with their own cookies, which they can't use inside MeoDeo. With this on, those videos open in a new tab on their site, where your cookies and sign-in work.</p>
+        </fieldset>
+        <fieldset id="site-keys">
+          <legend>Website keys (optional)</legend>
+        </fieldset>
+      </div>
+      <div class="player-foot">
+        <button type="button" id="clear-keys" class="link-btn">Forget all keys</button>
+        <button value="save" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="assets/app.js"></script>
+</body>
+</html>
