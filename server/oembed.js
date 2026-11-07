@@ -64,3 +64,24 @@ export async function fetchOembed(endpoint, fetchPage, opts = {}) {
     return null;
   }
 }
+
+/**
+ * Title, channel and thumbnail for a page from its site's oEmbed (any type),
+ * e.g. to name a video someone posted as a bare link.
+ */
+export async function oembedMeta(pageUrl, fetchPage, opts = {}) {
+  const ep = endpointFor(pageUrl);
+  if (!ep) return null;
+  try {
+    const res = await fetchPage(ep.url, { ...opts, maxBytes: 100_000 });
+    if (res.status < 200 || res.status >= 300 || !res.body) return null;
+    const d = JSON.parse(res.body);
+    return {
+      title: d.title || undefined,
+      channel: d.author_name || undefined,
+      thumbnail: /^https:/.test(d.thumbnail_url || "") ? d.thumbnail_url : undefined,
+    };
+  } catch {
+    return null;
+  }
+}

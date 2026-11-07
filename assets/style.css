@@ -117,3 +117,24 @@ fieldset input, fieldset select { font: inherit; padding: 8px 10px; border: 1px 
 .radio input { width: auto !important; margin-top: 2px; }
 .gol-flag { flex: none; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; padding: 0 5px; border-radius: 4px; border: 1px solid #c2410c; color: #c2410c; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .gol-flag { border-color: #fb923c; color: #fb923c; } }
+
+/* views, account, feed */
+.tabs { display: inline-flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 2px; }
+.tab { padding: 6px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; background: none; border: 0; cursor: pointer; font-family: inherit; }
+.tab.active, .tab[aria-current="page"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.pill-btn { font: inherit; font-weight: 600; font-size: 14px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed-head h2 { margin: 0 0 2px; font-size: 20px; }
+.post-form { display: grid; gap: 6px; max-width: 640px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 10px 0 16px; }
+.post-form label { font-size: 13px; font-weight: 600; }
+.post-form input { font: inherit; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); min-width: 0; }
+.post-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.post-actions .status { margin: 0; }
+.post-signin { margin: 10px 0 16px; }
+.post-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+.post-meta strong { color: var(--text); }
+.post-caption { width: 100%; margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.post-delete { margin-left: auto; background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font: inherit; font-size: 12px; }
+#feed-more { margin: 18px auto 0; display: block; }
+.auth-switch { display: flex; gap: 4px; }
+.auth-error { margin: 0; color: #b91c1c; font-size: 13px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .auth-error { color: #f87171; } }

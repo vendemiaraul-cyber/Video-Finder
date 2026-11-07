@@ -99,6 +99,20 @@ The server only opens public web pages: it refuses private and local network add
 
 On GitHub Pages (no server), MeoDeo still searches the other websites directly. To add SearXNG there, run the MeoDeo server and put its address in ⚙ Settings → SearXNG.
 
+## Public feed and MeoDeo accounts
+
+The **Feed** tab shows videos shared by MeoDeo users. Anyone can watch; to post, create a free MeoDeo account (username + password) and paste a video link. MeoDeo checks the link first and only accepts videos that play inside MeoDeo, names them from the site's oEmbed, and lets you delete your own posts. The player has a **Post to feed** button too.
+
+It runs on Cloudflare Pages Functions (`functions/api/auth/*`, `me.js`, `feed.js`, `posts/*`) with a **Cloudflare D1** database (free plan, no card). Setup:
+
+1. Cloudflare dashboard → **Storage & databases → D1 SQL database → Create** → name it `meodeo`.
+2. **Workers & Pages → video-finder → Settings → Bindings → Add → D1 database**: variable name **`DB`**, database **`meodeo`** → Save.
+3. Redeploy. MeoDeo creates its tables on first use.
+
+Safety: passwords are stored as salted PBKDF2 hashes; session cookies are HttpOnly, Secure and SameSite, and the database keeps only their hash; posting and account changes are only accepted from MeoDeo's own pages; sign-ups (5 per IP a day), failed log-ins (20 per IP an hour) and posts (30 per user a day) are rate limited, with IPs stored only as hashes. As the site owner you're responsible for what's posted, so keep an eye on the feed.
+
+The D1 database also stores which websites allow or refuse embedding, shared by all searches.
+
 ## Use MeoDeo from Claude (skill)
 
 The `meodeo-video-search` skill lets Claude search videos through MeoDeo in any project.

@@ -16,16 +16,41 @@
       <input id="q" name="q" type="search" placeholder="Search videos on every site…" maxlength="300" autocomplete="off" autofocus>
       <button type="submit">Search</button>
     </form>
+    <nav class="tabs" aria-label="Views">
+      <a href="#search" id="tab-search" class="tab">Search</a>
+      <a href="#feed" id="tab-feed" class="tab">Feed</a>
+    </nav>
+    <button id="account-btn" class="pill-btn" type="button">Sign in</button>
     <button id="open-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings">⚙</button>
     <div id="site-filters" class="filters" aria-label="Websites to search"></div>
   </header>
 
   <main>
-    <p id="status" class="status" aria-live="polite"></p>
-    <section>
-      <ul id="site-status" class="site-status"></ul>
-      <div id="results" class="grid"></div>
-    </section>
+    <div id="view-search">
+      <p id="status" class="status" aria-live="polite"></p>
+      <section>
+        <ul id="site-status" class="site-status"></ul>
+        <div id="results" class="grid"></div>
+      </section>
+    </div>
+
+    <div id="view-feed" hidden>
+      <div class="feed-head">
+        <h2>Feed</h2>
+        <p class="status">Videos shared by MeoDeo users. Anyone can watch; sign in to post.</p>
+      </div>
+      <form id="post-form" class="post-form" hidden>
+        <label for="post-url">Video link</label>
+        <input id="post-url" name="url" type="url" required placeholder="https://…" autocomplete="off">
+        <label for="post-caption">Caption (optional)</label>
+        <input id="post-caption" name="caption" type="text" maxlength="280" placeholder="Why it's worth watching" autocomplete="off">
+        <div class="post-actions"><button class="primary" type="submit">Post</button><span id="post-status" class="status" role="status"></span></div>
+      </form>
+      <p id="post-signin" class="post-signin" hidden><button id="post-signin-btn" class="primary" type="button">Sign in to post</button></p>
+      <p id="feed-status" class="status" role="status"></p>
+      <div id="feed-list" class="grid feed"></div>
+      <button id="feed-more" class="secondary" type="button" hidden>Load more</button>
+    </div>
   </main>
 
   <footer class="foot">
@@ -44,8 +69,35 @@
       <span id="player-meta"></span>
       <span id="player-ads" class="ads-note" hidden></span>
       <span id="player-hint" class="cookie-hint" hidden></span>
+      <button id="player-share" class="secondary" type="button" hidden>Post to feed</button>
       <a id="player-link" target="_blank" rel="noopener noreferrer"></a>
     </div>
+  </dialog>
+
+  <dialog id="auth" aria-labelledby="auth-title">
+    <form method="dialog" id="auth-form">
+      <div class="player-head">
+        <h2 id="auth-title">Sign in</h2>
+        <button class="icon-btn" value="cancel" aria-label="Close" formnovalidate>✕</button>
+      </div>
+      <div class="settings-body" id="auth-fields">
+        <div class="auth-switch" role="tablist">
+          <button type="button" id="auth-mode-login" class="tab active">Sign in</button>
+          <button type="button" id="auth-mode-signup" class="tab">Create account</button>
+        </div>
+        <label>Username <input id="auth-username" name="username" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}"></label>
+        <label>Password <input id="auth-password" name="password" type="password" autocomplete="current-password" required minlength="8" maxlength="200"></label>
+        <p id="auth-error" class="auth-error" role="alert" hidden></p>
+        <p class="hint">Your MeoDeo account is only for posting to the public feed. Usernames are public; passwords are stored encrypted (hashed).</p>
+      </div>
+      <div class="settings-body" id="auth-signed-in" hidden>
+        <p>Signed in as <strong id="auth-who"></strong>.</p>
+      </div>
+      <div class="player-foot">
+        <button type="button" id="auth-logout" class="link-btn" hidden>Sign out</button>
+        <button value="submit" id="auth-submit" class="primary">Sign in</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog id="settings" aria-labelledby="settings-title">

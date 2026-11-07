@@ -207,8 +207,11 @@ function openPlayer(video) {
   hint.hidden = !(video.needsCookies && settings.cookieMode !== "open");
   hint.textContent = hint.hidden ? "" : `🍪 ${video.domain} needs its cookies: accept them or sign in inside the player.`;
   stopPlayer = player(video, els.frame, { gol, cookieMode: settings.cookieMode || "inside" });
+  currentVideo = video;
+  $("#player-share").hidden = !(me.feed && me.user && playsInMeoDeo(video));
   els.player.showModal();
 }
+let currentVideo = null;
 
 let stopPlayer = null;
 els.player.addEventListener("close", () => { stopPlayer?.(); stopPlayer = null; els.frame.replaceChildren(); });
@@ -269,17 +272,208 @@ els.settings.addEventListener("close", () => {
   if (els.q.value.trim()) search(els.q.value.trim()); // apply the new result settings
 });
 
+/* ---------- account and public feed ---------- */
+
+let me = { feed: false, user: null };
+let meReady = false;
+const playsInMeoDeo = (v) => v.play.kind !== "link" || !!v.play.inside;
+
+async function api(path, { method = "GET", body } = {}) {
+  const res = await fetch(path, {
+    method, credentials: "same-origin",
+    headers: body ? { "content-type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data = {};
+  try { data = await res.json(); } catch { /* not JSON (e.g. no feed on this host) */ }
+  if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status, code: data.code });
+  return data;
+}
+
+async function loadMe() {
+  try { me = await api("/api/me"); } catch { me = { feed: false, user: null }; }
+  meReady = true;
+  showAccount();
+}
+
+function showAccount() {
+  const btn = $("#account-btn");
+  btn.hidden = !me.feed;
+  btn.textContent = me.user ? "@" + me.user.username : "Sign in";
+  $("#post-form").hidden = !(me.feed && me.user);
+  $("#post-signin").hidden = !me.feed || !!me.user;
+}
+
+/* views: #search (default) and #feed */
+function route() {
+  const feed = location.hash === "#feed";
+  $("#view-search").hidden = feed;
+  $("#view-feed").hidden = !feed;
+  $("#tab-search").setAttribute("aria-current", feed ? "false" : "page");
+  $("#tab-feed").setAttribute("aria-current", feed ? "page" : "false");
+  $("#tab-search").classList.toggle("active", !feed);
+  $("#tab-feed").classList.toggle("active", feed);
+  if (feed && !feedLoaded && meReady) loadFeed(true);
+}
+window.addEventListener("hashchange", route);
+
+let feedLoaded = false;
+let feedNext = null;
+
+const timeAgo = (ms) => {
+  const s = Math.max(1, Math.round((Date.now() - ms) / 1000));
+  for (const [n, unit] of [[86400 * 365, "y"], [86400 * 30, "mo"], [86400, "d"], [3600, "h"], [60, "min"]]) if (s >= n) return `${Math.floor(s / n)} ${unit} ago`;
+  return "just now";
+};
+
+function postCard(post) {
+  const raw = post.video || {};
+  const v = gol.normalize(gol.sites.get(raw.site) || gol.sites.get("web"), raw);
+  if (!v) return null;
+  const node = card(v, { gol, onOpen: open });
+  const meta = document.createElement("div");
+  meta.className = "post-meta";
+  const who = Object.assign(document.createElement("strong"), { textContent: "@" + post.username });
+  const when = Object.assign(document.createElement("span"), { textContent: timeAgo(post.createdAt) });
+  meta.append(who, when);
+  if (post.mine) {
+    const del = Object.assign(document.createElement("button"), { type: "button", className: "post-delete", textContent: "Delete" });
+    del.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      del.disabled = true;
+      try { await api(`/api/posts/${post.id}`, { method: "DELETE" }); node.remove(); }
+      catch (err) { del.disabled = false; $("#feed-status").textContent = "Couldn't delete: " + err.message; }
+    });
+    meta.append(del);
+  }
+  if (post.caption) meta.append(Object.assign(document.createElement("p"), { className: "post-caption", textContent: post.caption }));
+  meta.addEventListener("click", (e) => e.stopPropagation());
+  node.append(meta);
+  return node;
+}
+
+async function loadFeed(reset = false) {
+  const status = $("#feed-status");
+  if (!me.feed) {
+    status.textContent = "The feed isn't available on this copy of MeoDeo.";
+    return;
+  }
+  if (reset) { feedNext = null; $("#feed-list").replaceChildren(); }
+  status.textContent = "Loading…";
+  try {
+    const data = await api("/api/feed" + (feedNext ? `?before=${feedNext}` : ""));
+    feedLoaded = true;
+    $("#feed-list").append(...data.posts.map(postCard).filter(Boolean));
+    feedNext = data.next;
+    $("#feed-more").hidden = !feedNext;
+    status.textContent = $("#feed-list").children.length ? "" : "No posts yet. Be the first to share a video!";
+  } catch (err) {
+    status.textContent = "Couldn't load the feed: " + err.message;
+  }
+}
+$("#feed-more").addEventListener("click", () => loadFeed(false));
+
+$("#post-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.currentTarget;
+  const status = $("#post-status");
+  const btn = f.querySelector("button[type=submit]");
+  btn.disabled = true;
+  status.textContent = "Checking the video…";
+  try {
+    const { post } = await api("/api/posts", { method: "POST", body: { url: f.url.value.trim(), caption: f.caption.value.trim() } });
+    const node = postCard(post);
+    if (node) $("#feed-list").prepend(node);
+    $("#feed-status").textContent = "";
+    f.reset();
+    status.textContent = "Posted ✓";
+  } catch (err) {
+    status.textContent = err.status === 401 ? "Please sign in again." : err.message;
+    if (err.status === 401) { me.user = null; showAccount(); }
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* account dialog */
+let authMode = "login";
+function setAuthMode(mode) {
+  authMode = mode;
+  $("#auth-mode-login").classList.toggle("active", mode === "login");
+  $("#auth-mode-signup").classList.toggle("active", mode === "signup");
+  $("#auth-title").textContent = mode === "login" ? "Sign in" : "Create a MeoDeo account";
+  $("#auth-submit").textContent = mode === "login" ? "Sign in" : "Create account";
+  $("#auth-password").autocomplete = mode === "login" ? "current-password" : "new-password";
+}
+function openAuth(mode) {
+  const signedIn = !!me.user;
+  $("#auth-fields").hidden = signedIn;
+  $("#auth-signed-in").hidden = !signedIn;
+  $("#auth-logout").hidden = !signedIn;
+  $("#auth-submit").hidden = signedIn;
+  $("#auth-error").hidden = true;
+  for (const id of ["#auth-username", "#auth-password"]) $(id).disabled = signedIn;
+  if (signedIn) { $("#auth-title").textContent = "Your account"; $("#auth-who").textContent = "@" + me.user.username; }
+  else setAuthMode(mode || authMode);
+  $("#auth").showModal();
+}
+$("#account-btn").addEventListener("click", () => openAuth());
+$("#post-signin-btn").addEventListener("click", () => openAuth("signup"));
+$("#auth-mode-login").addEventListener("click", () => setAuthMode("login"));
+$("#auth-mode-signup").addEventListener("click", () => setAuthMode("signup"));
+$("#auth-form").addEventListener("submit", async (e) => {
+  if (e.submitter?.value !== "submit" || me.user) return; // the close button
+  e.preventDefault();
+  const err = $("#auth-error");
+  err.hidden = true;
+  $("#auth-submit").disabled = true;
+  try {
+    const data = await api(authMode === "login" ? "/api/auth/login" : "/api/auth/signup", {
+      method: "POST", body: { username: $("#auth-username").value.trim(), password: $("#auth-password").value },
+    });
+    me.user = data.user;
+    $("#auth-password").value = "";
+    showAccount();
+    $("#auth").close();
+    if (feedLoaded) loadFeed(true); // show your posts' delete buttons
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+  } finally {
+    $("#auth-submit").disabled = false;
+  }
+});
+$("#auth-logout").addEventListener("click", async () => {
+  try { await api("/api/auth/logout", { method: "POST" }); } catch { /* signed out locally anyway */ }
+  me.user = null;
+  showAccount();
+  $("#auth").close();
+  if (feedLoaded) loadFeed(true);
+});
+
+/* "Post to feed" from the player */
+$("#player-share").addEventListener("click", () => {
+  if (!currentVideo) return;
+  const url = currentVideo.url;
+  els.player.close();
+  location.hash = "#feed";
+  $("#post-url").value = url;
+  $("#post-caption").focus();
+});
+
 /* ---------- boot ---------- */
 
 gol.unavailable.set("searxng", "checking…"); // until the first check answers
 els.form.addEventListener("submit", (e) => {
   e.preventDefault();
   const q = els.q.value.trim();
-  if (q) search(q);
+  if (q) { if (location.hash === "#feed") location.hash = "#search"; search(q); }
 });
 renderFilters();
 const directCount = [...gol.sites.values()].filter((s) => s.search && !s.needsServer).length;
 els.status.textContent = `Search ${directCount} video websites at once, plus the whole web through SearXNG.`;
+route();
+loadMe().then(() => { if (location.hash === "#feed") loadFeed(true); });
 const initial = new URLSearchParams(location.search).get("q");
 checkServer().then(() => {
   if (initial) { els.q.value = initial; search(initial); }
