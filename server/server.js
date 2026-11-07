@@ -35,7 +35,7 @@ export function config(env = process.env) {
     pages: Math.max(1, Math.min(5, +(env.SEARXNG_PAGES || 2))),
     categories: env.SEARXNG_CATEGORIES || "videos,news,general",
     skip: skipList(env.SEARXNG_SKIP),
-    safesearch: env.SEARXNG_SAFESEARCH ?? "1",
+    safesearch: env.SEARXNG_SAFESEARCH ?? "2", // strict
     probeLimit: +(env.PROBE_LIMIT || 16),
     allowOrigin: env.ALLOW_ORIGIN || "*",
     youtubeKey: env.YOUTUBE_API_KEY || undefined,

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>MeoDeo Admin</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <style>
+    .adm { max-width: 760px; margin: 0 auto; padding: 16px 16px 48px; }
+    .adm h1 { font-size: 24px; margin: 8px 0; }
+    .adm h2 { font-size: 19px; margin: 28px 0 8px; }
+    .adm form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .adm input { font: inherit; padding: 10px; border: 1px solid var(--border); border-radius: 10px; flex: 1 1 180px; min-width: 0; background: var(--surface); color: inherit; }
+    .adm ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+    .adm li { padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow-wrap: anywhere; }
+    .adm li .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    .adm .muted { color: var(--muted); font-size: 14px; }
+    .adm .url { font-family: ui-monospace, monospace; font-size: 13px; }
+    .adm .pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--border); }
+    .adm button.small { font-size: 13px; padding: 6px 10px; }
+  </style>
+</head>
+<body>
+  <main class="adm">
+    <h1>MeoDeo Admin</h1>
+    <p class="muted">Only for MeoDeo's owner. Everything here is text: no thumbnails or players, and links aren't clickable,
+      so nothing inappropriate opens on your screen.</p>
+
+    <form id="login">
+      <input id="key" type="password" autocomplete="current-password" placeholder="Admin password (ADMIN_KEY)" required>
+      <button class="primary" type="submit">Open</button>
+    </form>
+    <p id="msg" role="status"></p>
+
+    <div id="panel" hidden>
+      <h2>🚫 Banned websites</h2>
+      <p class="muted">A banned website (and its subdomains) disappears from search and the feed and can't be posted.
+        Websites that label themselves adult-only are banned automatically.</p>
+      <form id="ban-form">
+        <input id="ban-domain" placeholder="website, e.g. badsite.com" required autocomplete="off" autocapitalize="none">
+        <input id="ban-reason" placeholder="reason (optional)" autocomplete="off">
+        <button class="primary" type="submit">Ban</button>
+      </form>
+      <ul id="banned"></ul>
+
+      <h2>📨 Takedown requests</h2>
+      <ul id="takedowns"></ul>
+
+      <h2>🚩 Reports</h2>
+      <ul id="reports"></ul>
+
+      <h2>🙈 Hidden posts</h2>
+      <ul id="hidden"></ul>
+
+      <p><button id="logout" class="link-btn" type="button">Close admin</button></p>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (s) => document.querySelector(s);
+    const KEY = "meodeo.admin";
+    const getKey = () => { try { return sessionStorage.getItem(KEY) || ""; } catch { return ""; } };
+    const setKey = (v) => { try { v ? sessionStorage.setItem(KEY, v) : sessionStorage.removeItem(KEY); } catch {} };
+    const say = (t, bad) => { $("#msg").textContent = t; $("#msg").className = bad ? "auth-error" : "status"; };
+    const when = (ms) => new Date(ms).toLocaleString();
+    const li = (...kids) => { const n = document.createElement("li"); n.append(...kids); return n; };
+    const span = (text, cls) => Object.assign(document.createElement("span"), { textContent: text, className: cls || "" });
+    const div = (cls, ...kids) => { const n = document.createElement("div"); n.className = cls; n.append(...kids); return n; };
+    const btn = (text, fn) => { const b = Object.assign(document.createElement("button"), { type: "button", textContent: text, className: "secondary small" }); b.onclick = fn; return b; };
+    const br = () => document.createElement("br");
+
+    async function call(action, extra = {}) {
+      const res = await fetch("/api/admin", { method: "POST", credentials: "same-origin",
+        headers: { "content-type": "application/json", "x-meodeo-admin": getKey() }, body: JSON.stringify({ action, ...extra }) });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) { const e = new Error(out.error || `Error ${res.status}`); e.status = res.status; throw e; }
+      return out;
+    }
+    const act = (action, extra, done) => async () => {
+      try { const out = await call(action, extra); say(done ? done(out) : "Done."); await load(); } catch (e) { say(e.message, true); }
+    };
+
+    async function load() {
+      let d;
+      try { d = await call("overview"); } catch (e) {
+        if (e.status === 401 || e.status === 429 || e.status === 503) { setKey(""); $("#panel").hidden = true; $("#login").hidden = false; }
+        say(e.message, true); return;
+      }
+      $("#login").hidden = true; $("#panel").hidden = false;
+      $("#banned").replaceChildren(...(d.banned.length ? d.banned.map((b) => li(
+        span(b.domain, "url"), br(), span(`${b.reason || "no reason given"} · ${when(b.created_at)}`, "muted"),
+        div("row", btn("Unban", act("unban", { domain: b.domain }, () => `${b.domain} unbanned.`))))) : [li(span("No banned websites yet.", "muted"))]));
+      $("#takedowns").replaceChildren(...(d.takedowns.length ? d.takedowns.map((t) => li(
+        span(`#${t.id} · ${t.kind} · `), span(t.status, "pill"), br(), span(t.url, "url"), br(),
+        span(`About: ${t.work}`), br(), span(`From: ${t.name} (${t.contact}) · ${when(t.created_at)}`, "muted"),
+        t.details ? Object.assign(document.createElement("p"), { textContent: t.details, className: "muted" }) : "",
+        div("row", t.status === "removed"
+          ? btn("Reject: put the link back", act("rejectTakedown", { id: t.id }))
+          : btn("Remove the link again", act("removeTakedown", { id: t.id }))))) : [li(span("No takedown requests.", "muted"))]));
+      $("#reports").replaceChildren(...(d.reports.length ? d.reports.map((r) => li(
+        span(`Post #${r.post_id} · ${r.reason}`), r.hidden ? span(" hidden", "pill") : "", br(), span(r.url || "(post deleted)", "url"),
+        r.details ? Object.assign(document.createElement("p"), { textContent: r.details, className: "muted" }) : "",
+        span(when(r.created_at), "muted"),
+        r.url ? div("row", btn("Hide post", act("hidePost", { id: r.post_id })), btn("Delete post", act("deletePost", { id: r.post_id })),
+          btn("Ban its website", act("ban", { domain: r.url, reason: `reported: ${r.reason}` }, (o) => `${o.domain} banned.`))) : "")) : [li(span("No reports.", "muted"))]));
+      $("#hidden").replaceChildren(...(d.hiddenPosts.length ? d.hiddenPosts.map((p) => li(
+        span(`Post #${p.id} by @${p.username}`), br(), span(p.url, "url"), p.caption ? Object.assign(document.createElement("p"), { textContent: p.caption, className: "muted" }) : "",
+        div("row", btn("Restore", act("restorePost", { id: p.id })), btn("Delete for good", act("deletePost", { id: p.id }))))) : [li(span("No hidden posts.", "muted"))]));
+    }
+
+    $("#login").addEventListener("submit", (e) => { e.preventDefault(); setKey($("#key").value); $("#key").value = ""; say("Opening…"); load(); });
+    $("#ban-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await act("ban", { domain: $("#ban-domain").value, reason: $("#ban-reason").value },
+        (o) => `${o.domain} banned` + (o.hiddenPosts ? `, ${o.hiddenPosts} feed post(s) hidden.` : "."))();
+      $("#ban-domain").value = ""; $("#ban-reason").value = "";
+    });
+    $("#logout").addEventListener("click", () => { setKey(""); location.reload(); });
+    if (getKey()) load();
+  </script>
+</body>
+</html>

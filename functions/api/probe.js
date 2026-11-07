@@ -6,7 +6,7 @@ import { Gol } from "../../gol/gol.js";
 import sites from "../../gol/sites/index.js";
 import { checkCandidate, skipList } from "../../server/searxng.js";
 import { workerFetchPage } from "../../server/worker-fetch.js";
-import { ensureSchema } from "../../server/feed.js";
+import { ensureSchema, banSite } from "../../server/feed.js";
 import { setting, policyFor } from "./search.js";
 import { requireHuman } from "../../server/human.js";
 
@@ -34,6 +34,8 @@ export async function onRequestPost({ request, env }) {
   const video = await checkCandidate(result, {
     gol, skip: skipList(setting(env, "SEARXNG_SKIP")), policy: policyFor(env),
     probeOpts: { fetch: (u, o) => workerFetchPage(u, { ...o, budget }), timeoutMs: 6000 },
+    // Adult-labelled website: ban it for everyone, so nobody has to look at it to decide.
+    onAdult: db ? (domain) => banSite(db, domain, "automatic: the website labels itself adult-only").catch(() => {}) : undefined,
   });
   if (db && budget.left > 0) {
     await db.prepare(`INSERT INTO probe_cache (url, result_json, checked_at) VALUES (?, ?, ?)

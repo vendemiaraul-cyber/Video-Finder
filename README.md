@@ -253,3 +253,22 @@ or bank account.
 3. Deployments → latest → **Retry deployment** (secrets apply to new deployments).
 
 On the Node server, set `PEXELS_API_KEY` in its environment instead.
+
+## Admin page and ban list
+
+`admin.html` (not linked anywhere, not indexed) is the owner's moderation page:
+ban or unban websites, review takedown requests, reports and hidden posts.
+It shows text only (no thumbnails, players or clickable links).
+
+Turn it on: Cloudflare → your project → Settings → Variables and Secrets → Add →
+Type **Secret** → Name `ADMIN_KEY` → a long password only you know → Save,
+then retry the latest deployment. Wrong passwords are limited to 10 an hour per visitor.
+
+A banned website (and its subdomains) is left out of search (`GET /api/blocklist`),
+its feed posts are hidden, and it can't be posted.
+
+**Automatic bans:** when MeoDeo checks a web page and the page labels itself
+adult-only (the RTA "Restricted To Adults" label, `<meta name="rating" content="adult">`,
+schema.org `isFamilyFriendly: false`, an 18+ age restriction tag, or a
+"18 U.S.C. 2257" statement), the page is dropped and its website is banned for
+everyone, so nobody has to open it to decide. SearXNG now uses strict safe search.

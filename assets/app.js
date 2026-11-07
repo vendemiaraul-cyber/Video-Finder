@@ -95,10 +95,15 @@ function showServerState() {
 
 /* ---------- content rules ---------- */
 // Adult/shock content and links removed after a takedown request never show.
+// Websites banned by MeoDeo's owner (admin page) are left out too.
 let removedLinks = new Set();
-fetch("/api/takedown", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null))
-  .then((d) => { if (Array.isArray(d?.removed)) removedLinks = new Set(d.removed); }).catch(() => {});
-const allowed = (videos) => videos.filter((v) => isSafe(v) && !removedLinks.has(canonicalUrl(v.url)));
+let bannedSites = [];
+fetch("/api/blocklist", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null))
+  .then((d) => {
+    if (Array.isArray(d?.links)) removedLinks = new Set(d.links);
+    if (Array.isArray(d?.sites)) bannedSites = d.sites;
+  }).catch(() => {});
+const allowed = (videos) => videos.filter((v) => isSafe(v, { bannedSites }) && !removedLinks.has(canonicalUrl(v.url)));
 
 /* ---------- site filter chips ---------- */
 

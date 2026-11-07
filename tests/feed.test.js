@@ -299,3 +299,34 @@ test("Pexels key stays private on the server", async () => {
     globalThis.fetch = realFetch;
   }
 });
+
+test("admin tools: password, ban list, hidden posts and takedown review", async () => {
+  const { onRequestPost: adminFn } = await import("../functions/api/admin.js");
+  const { onRequestGet: blocklistFn } = await import("../functions/api/blocklist.js");
+  const env = { DB: fakeD1(), MEODEO_SECRET: SECRET, ADMIN_KEY: "owner-password-long" };
+  const admin = (body, key = "owner-password-long", ip) => adminFn({ request: (() => {
+    const r = req("/api/admin", { method: "POST", body, ip }); r.headers.set("x-meodeo-admin", key); return r; })(), env });
+  assert.equal((await adminFn({ request: req("/api/admin", { method: "POST", body: { action: "overview" } }), env: { DB: fakeD1() } })).status, 503, "off without ADMIN_KEY");
+  assert.equal((await admin({ action: "overview" }, "wrong")).status, 401);
+
+  const a = cookieOf(await signupFn({ request: req("/api/auth/signup", { method: "POST", body: { username: "sharer", password: "password14", agree: true } }), env }));
+  const vid = await (await postFn({ request: req("/api/posts", { method: "POST", cookie: a, body: { url: "https://vimeo.com/76979871" } }), env })).json();
+  assert.equal((await admin({ action: "ban", domain: "not a site" })).status, 400);
+  const ban = await (await admin({ action: "ban", domain: "https://www.Vimeo.com/x", reason: "test" })).json();
+  assert.deepEqual(ban, { domain: "vimeo.com", hiddenPosts: 1 });
+  assert.equal((await (await feedFn({ request: req("/api/feed"), env })).json()).posts.length, 0);
+  assert.deepEqual((await (await blocklistFn({ request: req("/api/blocklist"), env })).json()).sites, ["vimeo.com"]);
+  const again = await postFn({ request: req("/api/posts", { method: "POST", cookie: a, body: { url: "https://vimeo.com/1084537" } }), env });
+  assert.equal(again.status, 422, "banned websites can't be posted");
+
+  const overview = await (await admin({ action: "overview" })).json();
+  assert.equal(overview.banned[0].domain, "vimeo.com");
+  assert.equal(overview.hiddenPosts[0].id, vid.post.id);
+  assert.equal((await admin({ action: "unban", domain: "vimeo.com" })).status, 200);
+  assert.equal((await admin({ action: "restorePost", id: vid.post.id })).status, 200);
+  assert.equal((await (await feedFn({ request: req("/api/feed"), env })).json()).posts.length, 1);
+  assert.equal((await admin({ action: "deletePost", id: vid.post.id })).status, 200);
+  assert.equal((await admin({ action: "nope" })).status, 400);
+  for (let i = 0; i < 10; i++) await admin({ action: "overview" }, "guess" + i, "192.0.2.77");
+  assert.equal((await admin({ action: "overview" }, "guess-more", "192.0.2.77")).status, 429, "wrong passwords are limited");
+});

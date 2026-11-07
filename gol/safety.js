@@ -28,25 +28,36 @@ export function hostOf(url) {
   try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; }
 }
 
-/** True for adult/gore/piracy websites. */
-export function isBlockedDomain(urlOrHost) {
-  const host = String(urlOrHost || "").includes("/") ? hostOf(urlOrHost) : String(urlOrHost || "").toLowerCase().replace(/^www\./, "");
-  if (!host) return false;
-  if (BLOCKED_TLDS.some((t) => host.endsWith(t))) return true;
-  return BLOCKED_DOMAINS.some((d) => host === d || host.endsWith("." + d));
+/** "https://www.Example.com/x" or "example.com" -> "example.com" ("" if it isn't a website name). */
+export function domainOf(input) {
+  let s = String(input || "").trim().toLowerCase();
+  if (!s) return "";
+  if (!/^[a-z]+:\/\//.test(s)) s = "https://" + s;
+  const host = hostOf(s);
+  return /^(?=.{3,253}$)([a-z0-9-]{1,63}\.)+[a-z0-9-]{2,63}$/.test(host) ? host : "";
 }
 
-/** Why a video is kept out of MeoDeo, or "" when it's fine. */
-export function unsafeReason(video) {
+const inList = (host, list) => [...list].some((d) => host === d || host.endsWith("." + d));
+
+/** True for adult/gore/piracy websites, built in or banned by MeoDeo's owner (extra). */
+export function isBlockedDomain(urlOrHost, extra = []) {
+  const host = domainOf(urlOrHost);
+  if (!host) return false;
+  if (BLOCKED_TLDS.some((t) => host.endsWith(t))) return true;
+  return inList(host, BLOCKED_DOMAINS) || inList(host, extra);
+}
+
+/** Why a video is kept out of MeoDeo, or "" when it's fine. bannedSites: the owner's ban list. */
+export function unsafeReason(video, { bannedSites = [] } = {}) {
   if (!video) return "";
   for (const u of [video.url, video.play?.src, video.play?.inside?.src, ...(video.play?.sources || []).map((s) => s.src)]) {
-    if (u && isBlockedDomain(u)) return "blocked-site";
+    if (u && isBlockedDomain(u, bannedSites)) return "blocked-site";
   }
   const text = [video.title, video.channel, video.description].filter(Boolean).join(" \n ");
   return UNSAFE.test(text) ? "adult" : "";
 }
 
-export const isSafe = (video) => !unsafeReason(video);
+export const isSafe = (video, opts) => !unsafeReason(video, opts);
 
 /** Normalise a link so takedowns match however it was written (no www, no tracking bits, no trailing slash). */
 export function canonicalUrl(url) {

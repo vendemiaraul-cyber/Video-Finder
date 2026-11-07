@@ -427,3 +427,21 @@ test("black-screen reports flag a site once they outnumber successes", () => {
   assert.ok(refusesEmbedding({ reports: 3 }));
   assert.ok(!refusesEmbedding({ reports: 3, allowed: 5 }));
 });
+
+test("adult-labelled pages are dropped and reported, even when they need cookies", async () => {
+  const pages = {
+    "https://rta.example/v": `<meta name="RATING" content="RTA-5042-1996-1400-1577-RTA"><meta property="og:video" content="https://rta.example/e/1">`,
+    "https://rating.example/v": `<meta name="rating" content="adult"><video src="https://rating.example/a.mp4"></video>`,
+    "https://ld.example/v": `<script type="application/ld+json">{"@type":"VideoObject","name":"x","isFamilyFriendly":"false","contentUrl":"https://ld.example/a.mp4"}</script>`,
+    "https://usc.example/v": `<footer>18 U.S.C. 2257 Record-Keeping Requirements Compliance Statement</footer><p>Accept cookies to continue</p>`,
+    "https://fine.example/v": `<meta name="rating" content="general"><video src="https://fine.example/a.mp4"></video>`,
+  };
+  const fetch = async (url) => ({ status: 200, headers: {}, body: pages[url] || "", url, chain: [url] });
+  for (const u of Object.keys(pages).filter((u) => !u.includes("fine"))) assert.equal((await probe(u, { gol, fetch })).kind, "adult", u);
+  assert.equal((await probe("https://fine.example/v", { gol, fetch })).kind, "file");
+  const banned = [];
+  const { videos } = await toVideos(Object.keys(pages).map((url) => ({ url, title: "Some title", category: "videos" })),
+    { gol, probeOpts: { fetch }, onAdult: (d) => banned.push(d) });
+  assert.deepEqual(videos.map((v) => v.domain), ["fine.example"]);
+  assert.deepEqual(banned.sort(), ["ld.example", "rating.example", "rta.example", "usc.example"]);
+});

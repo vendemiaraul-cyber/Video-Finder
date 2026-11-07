@@ -9,7 +9,7 @@
  * - IP addresses are only used, hashed, for rate limits.
  */
 
-import { unsafeReason, canonicalUrl } from "../gol/safety.js";
+import { unsafeReason, canonicalUrl, domainOf } from "../gol/safety.js";
 
 const DAY = 86_400_000;
 const SESSION_DAYS = 30;
@@ -52,6 +52,8 @@ const MIGRATIONS = [
   "CREATE INDEX IF NOT EXISTS takedowns_canonical ON takedowns (canonical, status)",
   // Cached answers from APIs with small free allowances (Pexels).
   "CREATE TABLE IF NOT EXISTS api_cache (key TEXT PRIMARY KEY, result_json TEXT NOT NULL, checked_at INTEGER NOT NULL)",
+  // Websites MeoDeo's owner banned (on top of the built-in list in gol/safety.js).
+  "CREATE TABLE IF NOT EXISTS banned_sites (domain TEXT PRIMARY KEY, reason TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)",
 ];
 const ready = new WeakSet();
 export async function ensureSchema(db) {
@@ -173,7 +175,9 @@ export async function createPost(db, user, { url, caption } = {}, { resolveVideo
   const video = await resolveVideo(parsed.href);
   if (!video) throw new FeedError(422, "no-video", "MeoDeo couldn't find a video at that link.");
   if (!playsInMeoDeo(video)) throw new FeedError(422, "not-embeddable", `${video.domain} doesn't let its videos play in MeoDeo, so it can't go in the feed.`);
-  if (unsafeReason({ ...video, description: caption + " " + (video.description || "") })) {
+  const bannedSites = await listBannedSites(db);
+  if (unsafeReason({ ...video, description: caption + " " + (video.description || "") }, { bannedSites })
+      || unsafeReason({ url: parsed.href }, { bannedSites })) {
     throw new FeedError(422, "not-allowed", "That video breaks MeoDeo's rules (no adult, shock or pirated content), so it can't go in the feed.");
   }
   if (await isTakenDown(db, [parsed.href, video.url])) throw new FeedError(451, "taken-down", "That video was removed from MeoDeo after a copyright or legal request.");
@@ -271,4 +275,81 @@ export async function requestTakedown(db, { url, name, contact, work, kind, deta
 export async function listTakenDown(db) {
   const { results } = await db.prepare("SELECT DISTINCT canonical FROM takedowns WHERE status = 'removed' ORDER BY id DESC LIMIT 5000").all();
   return results.map((r) => r.canonical);
+}
+
+/* ---------- the owner's ban list and moderation tools ---------- */
+
+export async function listBannedSites(db) {
+  const { results } = await db.prepare("SELECT domain FROM banned_sites ORDER BY domain").all();
+  return results.map((r) => r.domain);
+}
+
+/** Ban a website (and its subdomains): it disappears from search and the feed, and can't be posted. */
+export async function banSite(db, input, reason = "") {
+  const domain = domainOf(input);
+  if (!domain) throw new FeedError(400, "bad-domain", "That isn't a website address. Example: badsite.com");
+  await db.prepare(`INSERT INTO banned_sites (domain, reason, created_at) VALUES (?, ?, ?)
+    ON CONFLICT(domain) DO UPDATE SET reason = excluded.reason`).bind(domain, String(reason || "").trim().slice(0, 300), Date.now()).run();
+  // Hide feed posts from it straight away.
+  const { results } = await db.prepare("SELECT id, url, video_json FROM posts WHERE hidden = 0").all();
+  let hidden = 0;
+  for (const p of results) {
+    let v = {};
+    try { v = JSON.parse(p.video_json); } catch { /* keep {} */ }
+    if (unsafeReason({ ...v, url: v.url || p.url }, { bannedSites: [domain] }) || unsafeReason({ url: p.url }, { bannedSites: [domain] })) {
+      await db.prepare("UPDATE posts SET hidden = 1 WHERE id = ?").bind(p.id).run();
+      hidden++;
+    }
+  }
+  return { domain, hiddenPosts: hidden };
+}
+
+export async function unbanSite(db, input) {
+  const domain = domainOf(input);
+  const res = await db.prepare("DELETE FROM banned_sites WHERE domain = ?").bind(domain).run();
+  if (!res.meta?.changes) throw new FeedError(404, "not-banned", "That website isn't on the ban list.");
+  return { domain };
+}
+
+/** Everything the owner reviews, as text only (no thumbnails or players). */
+export async function moderationOverview(db) {
+  const banned = (await db.prepare("SELECT domain, reason, created_at FROM banned_sites ORDER BY created_at DESC").all()).results;
+  const takedowns = (await db.prepare(`SELECT id, url, kind, name, contact, work, details, status, created_at
+    FROM takedowns ORDER BY id DESC LIMIT 100`).all()).results;
+  const reports = (await db.prepare(`SELECT reports.post_id AS post_id, reports.reason AS reason, reports.details AS details, reports.created_at AS created_at,
+      posts.url AS url, posts.hidden AS hidden
+    FROM reports LEFT JOIN posts ON posts.id = reports.post_id ORDER BY reports.id DESC LIMIT 200`).all()).results;
+  const hiddenPosts = (await db.prepare(`SELECT posts.id AS id, posts.url AS url, posts.caption AS caption, users.username AS username
+    FROM posts JOIN users ON users.id = posts.user_id WHERE posts.hidden = 1 ORDER BY posts.id DESC LIMIT 100`).all()).results;
+  return { banned, takedowns, reports, hiddenPosts };
+}
+
+export async function setPostHidden(db, id, hidden) {
+  const res = await db.prepare("UPDATE posts SET hidden = ? WHERE id = ?").bind(hidden ? 1 : 0, Number(id)).run();
+  if (!res.meta?.changes) throw new FeedError(404, "not-found", "No post with that number.");
+  return { id: Number(id), hidden: !!hidden };
+}
+
+export async function deletePostAsOwner(db, id) {
+  const res = await db.prepare("DELETE FROM posts WHERE id = ?").bind(Number(id)).run();
+  if (!res.meta?.changes) throw new FeedError(404, "not-found", "No post with that number.");
+  await db.prepare("DELETE FROM reports WHERE post_id = ?").bind(Number(id)).run();
+  return { id: Number(id), deleted: true };
+}
+
+export async function setTakedownStatus(db, id, status) {
+  if (!["removed", "rejected"].includes(status)) throw new FeedError(400, "bad-status", "Status is removed or rejected.");
+  const res = await db.prepare("UPDATE takedowns SET status = ? WHERE id = ?").bind(status, Number(id)).run();
+  if (!res.meta?.changes) throw new FeedError(404, "not-found", "No request with that number.");
+  return { id: Number(id), status };
+}
+
+/** Constant-time check of the owner's admin password (ADMIN_KEY), with a limit on wrong tries. */
+export async function checkAdmin(db, given, adminKey, ip) {
+  if (!adminKey) throw new FeedError(503, "admin-off", "The admin page isn't set up: add an ADMIN_KEY secret in Cloudflare.");
+  const a = await sha256("meodeo-admin:" + String(given || "")), b = await sha256("meodeo-admin:" + adminKey);
+  if (!sameText(a, b)) {
+    await rateLimit(db, await ipKey("adminfail", ip), DAY / 24, 10);
+    throw new FeedError(401, "bad-admin", "Wrong admin password.");
+  }
 }

@@ -112,6 +112,22 @@ function looksLikeCookieWall(res, startUrl) {
  * @returns {Promise<null | {kind:'gol', video} | {kind:'iframe', src} | {kind:'file', sources} | {kind:'link'} | {kind:'cookies'} , ...meta>}
  *          null means "this page offers no video".
  */
+/**
+ * Pages that label themselves as adult-only, the way adult websites do for
+ * parental-control filters: the RTA ("Restricted To Adults") label, a
+ * rating meta tag, schema.org isFamilyFriendly=false, an 18+ age restriction,
+ * or the US "2257" record-keeping statement adult sites must publish.
+ */
+const ADULT_LABELS = [
+  /RTA-5042-1996-1400-1577-RTA/i,
+  /<meta[^>]+name=["']?rating["']?[^>]+content=["']?(adult|mature|restricted|rta)/i,
+  /<meta[^>]+content=["']?(adult|mature|restricted|rta)[^>]+name=["']?rating["']?/i,
+  /"isFamilyFriendly"\s*:\s*"?(false|no)"?/i,
+  /<meta[^>]+property=["']?og:restrictions:age["']?[^>]+content=["']?(18|21)\+?/i,
+  /18\s*U\.?\s*S\.?\s*C\.?\s*(§|section)?\s*2257/i,
+];
+export const adultLabel = (html) => ADULT_LABELS.some((re) => re.test(String(html || "").slice(0, 400_000)));
+
 export async function probe(url, { gol, fetch, allowPrivate = false, timeoutMs = 6000 } = {}) {
   if (!fetch) throw new Error("probe needs a page fetcher (fetchPage on Node, workerFetchPage on Cloudflare)");
   let res;
@@ -120,6 +136,8 @@ export async function probe(url, { gol, fetch, allowPrivate = false, timeoutMs =
   } catch (err) {
     return { kind: "unreachable", reason: err.code === "EBLOCKED" ? "blocked" : err.code === "EBUDGET" ? "budget" : err.message };
   }
+  // An adult-labelled page is never shown, whatever video it has (even "needs cookies" pages).
+  if (res.body && adultLabel(res.body)) return { kind: "adult", finalUrl: res.url };
   const info = res.body ? extract(res.body, res.url) : { embeds: [], files: [], iframes: [], hasVideo: false };
   const base = { finalUrl: res.url, title: info.title, thumbnail: info.thumbnail, duration: info.duration,
                  channel: info.channel, published: info.published };

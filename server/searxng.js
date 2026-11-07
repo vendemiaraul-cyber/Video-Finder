@@ -74,7 +74,7 @@ export async function querySearxngAny(query, opts) {
 }
 
 /** Fetch one or more result pages from SearXNG. */
-export async function querySearxng(query, { baseUrl, pages = 2, firstPage = 1, categories = "videos", safesearch = 1, language = "all", fetchImpl = fetch, timeoutMs = 15000, headers = {} }) {
+export async function querySearxng(query, { baseUrl, pages = 2, firstPage = 1, categories = "videos", safesearch = 2, language = "all", fetchImpl = fetch, timeoutMs = 15000, headers = {} }) {
   const results = [];
   const unresponsive = new Set();
   const replies = await Promise.allSettled(Array.from({ length: pages }, async (_, i) => {
@@ -126,7 +126,7 @@ async function pool(items, limit, fn) {
  *  - links Gol recognises play in that site's official player right away
  *  - other links are probed; pages with no video are dropped
  */
-export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6, probeOpts = {}, cache, skip = new Set(DEFAULT_SKIP), perSite = 3, policy }) {
+export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6, probeOpts = {}, cache, skip = new Set(DEFAULT_SKIP), perSite = 3, policy, onAdult }) {
   results = safeResults(results);
   const stats = { results: results.length, recognised: 0, skipped: 0, probed: 0, remembered: 0, kept: 0, dropped: 0, cookies: 0 };
   let probes = 0;
@@ -183,6 +183,8 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
     }
     if (!p) return null;
     const pageHost = host(p.finalUrl || r.url);
+    // The page labels itself adult-only: drop it, and let the caller ban the website.
+    if (p.kind === "adult") { stats.adult = (stats.adult || 0) + 1; await onAdult?.(pageHost); return null; }
     const page = clean({
       ...common,
       title: common.title || p.title,
@@ -264,8 +266,8 @@ export async function splitResults(results, { gol, skip = new Set(DEFAULT_SKIP),
 }
 
 /** Check one candidate page (see splitResults). Returns a Gol video or null. */
-export async function checkCandidate(result, { gol, skip = new Set(DEFAULT_SKIP), policy, probeOpts, cache } = {}) {
+export async function checkCandidate(result, { gol, skip = new Set(DEFAULT_SKIP), policy, probeOpts, cache, onAdult } = {}) {
   if (!result || typeof result.url !== "string" || !/^https?:\/\//.test(result.url)) return null;
-  const { videos } = await toVideos([result], { gol, skip, policy, probeOpts, cache, probeLimit: 1, perSite: 1 });
+  const { videos } = await toVideos([result], { gol, skip, policy, probeOpts, cache, onAdult, probeLimit: 1, perSite: 1 });
   return videos[0] || null;
 }
