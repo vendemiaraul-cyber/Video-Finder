@@ -72,6 +72,7 @@ test("post, public feed, and deleting only your own posts", async () => {
   const { post } = await res.json();
   assert.equal(post.caption, "A classic");
   assert.equal(post.video.site, "youtube");
+  assert.equal(post.video.via, undefined, "a posted video isn't tagged as a SearXNG result");
   assert.equal(post.video.play.youtube.start, 42);
   assert.equal((await postFn({ request: req("/api/posts", { method: "POST", cookie: a, body: { url: "https://youtu.be/dQw4w9WgXcQ?t=42" } }), env })).status, 409);
   assert.equal((await postFn({ request: req("/api/posts", { method: "POST", cookie: a, body: { url: "http://insecure.example/v" } }), env })).status, 400);

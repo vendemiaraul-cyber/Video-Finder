@@ -58,6 +58,7 @@ export async function resolveVideo(url) {
   });
   const video = videos[0];
   if (!video) return null;
+  delete video.via; // posted by a person, not found through SearXNG
   // A bare link (e.g. youtu.be/...) has no title: ask the site's oEmbed for it.
   if (!video.title || video.title === "(untitled)" || video.title === video.url) {
     const meta = await oembedMeta(video.url, (u, o) => workerFetchPage(u, { ...o, budget }), { timeoutMs: 5000 });

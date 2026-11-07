@@ -17,6 +17,8 @@
   --skeleton: #22262e; color-scheme: dark;
 }
 * { box-sizing: border-box; }
+/* Elements with the hidden attribute stay hidden, even when a rule gives them a display. */
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
 a { color: var(--accent); }
