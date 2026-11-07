@@ -300,3 +300,9 @@ test("SearXNG results from sites MeoDeo already searches are skipped, other webs
   assert.equal(skipList("none").size, 0);
   assert.deepEqual([...skipList("youtube, TikTok")], ["youtube", "tiktok"]);
 });
+
+test("at most 3 SearXNG results per website", async () => {
+  const results = Array.from({ length: 6 }, (_, i) => ({ url: `https://vimeo.com/7697987${i}`, title: "V" + i }));
+  const { videos } = await toVideos(results, { gol, probeOpts: { fetch: fetchPage } });
+  assert.equal(videos.length, 3);
+});

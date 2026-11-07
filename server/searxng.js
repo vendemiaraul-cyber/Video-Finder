@@ -121,13 +121,21 @@ async function pool(items, limit, fn) {
  *  - links Gol recognises play in that site's official player right away
  *  - other links are probed; pages with no video are dropped
  */
-export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6, probeOpts = {}, cache, skip = new Set(DEFAULT_SKIP) }) {
+export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6, probeOpts = {}, cache, skip = new Set(DEFAULT_SKIP), perSite = 3 }) {
   const stats = { results: results.length, recognised: 0, skipped: 0, probed: 0, kept: 0, dropped: 0, cookies: 0 };
   let probes = 0;
   // Check results from video sources before general web pages: they're the
   // likeliest to have a playable video, and only probeLimit pages get checked.
   const isVideoResult = (r) => r.category === "videos" || r.template === "videos.html";
   results = [...results.filter(isVideoResult), ...results.filter((r) => !isVideoResult(r))];
+  // At most perSite results from one website, so one source (e.g. a site that
+  // answers every query with its own videos) can't fill the list.
+  const perHost = new Map();
+  results = results.filter((r) => {
+    const h = host(r.url);
+    perHost.set(h, (perHost.get(h) || 0) + 1);
+    return perHost.get(h) <= perSite;
+  });
   const videos = await pool(results, concurrency, async (r) => {
     const common = {
       title: r.title || undefined,
