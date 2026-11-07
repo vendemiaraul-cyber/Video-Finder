@@ -3,9 +3,10 @@
  * MeoDeo server - zero dependencies, Node 18+.
  *
  *   SEARXNG_URL=http://127.0.0.1:8888 node server/server.js
+ *   (several SearXNG addresses, comma-separated, are tried in order)
  *
  * Serves the MeoDeo website and adds:
- *   GET /api/health          -> { ok, searxng }
+ *   GET /api/health          -> { ok, searxng, reason }  (reason: json-off, limiter-on, unreachable)
  *   GET /api/search?q=...    -> SearXNG video results that really offer a
  *                               video, as Gol videos
  */
@@ -15,7 +16,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Gol } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
-import { querySearxng, toVideos, SearxngError } from "./searxng.js";
+import { querySearxngAny, toVideos, SearxngError, checkSearxng, searxngList } from "./searxng.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC = ["index.html", "assets", "gol"]; // only these are served
@@ -56,6 +57,7 @@ export function createServer(cfg = config(), { fetchImpl = fetch } = {}) {
   const gol = new Gol().register(sites);
   const searchCache = new TTLCache(5 * 60_000, 200);
   const probeCache = new TTLCache(30 * 60_000, 3000);
+  let health = null;
 
   const send = (res, status, body, headers = {}) => {
     res.writeHead(status, { "access-control-allow-origin": cfg.allowOrigin, "x-content-type-options": "nosniff", ...headers });
@@ -67,7 +69,7 @@ export function createServer(cfg = config(), { fetchImpl = fetch } = {}) {
     const key = q.toLowerCase();
     const hit = searchCache.get(key);
     if (hit) return hit;
-    const { results, unresponsive } = await querySearxng(q, {
+    const { results, unresponsive } = await querySearxngAny(q, {
       baseUrl: cfg.searxngUrl, pages: cfg.pages, categories: cfg.categories, safesearch: cfg.safesearch, fetchImpl,
     });
     const { videos, stats } = await toVideos(results, {
@@ -85,12 +87,18 @@ export function createServer(cfg = config(), { fetchImpl = fetch } = {}) {
       if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "Method not allowed");
 
       if (url.pathname === "/api/health") {
-        let searxng = false;
-        try {
-          const r = await fetchImpl(new URL("config", cfg.searxngUrl.replace(/\/?$/, "/")), { signal: AbortSignal.timeout(3000) });
-          searxng = r.ok;
-        } catch { /* reported below */ }
-        return json(res, 200, { ok: true, app: "meodeo", searxng, searxngUrl: cfg.searxngUrl });
+        // Cache for a minute: each check runs a tiny SearXNG search.
+        if (!health || Date.now() - health.t > 60_000 || url.searchParams.has("fresh")) {
+          const checks = await Promise.all(searxngList(cfg.searxngUrl).map((u) => checkSearxng(u, { fetchImpl })));
+          const good = checks.find((c) => c.ok);
+          health = { t: Date.now(), data: {
+            ok: true, app: "meodeo",
+            searxng: !!good,
+            searxngUrl: good?.url || cfg.searxngUrl,
+            reason: good ? undefined : (checks[0]?.reason || "not-set"),
+          } };
+        }
+        return json(res, 200, health.data);
       }
 
       if (url.pathname === "/api/search") {

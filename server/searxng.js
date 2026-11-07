@@ -18,6 +18,43 @@ export function parseLength(v) {
 const https = (u) => (typeof u === "string" && u ? u.replace(/^http:\/\//, "https://") : undefined);
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
 
+/** Split SEARXNG_URL ("http://a:8080, http://b:8888") into a list. */
+export const searxngList = (v) => String(v || "").split(",").map((s) => s.trim()).filter(Boolean);
+
+/**
+ * Is SearXNG reachable with its JSON API on?
+ * @returns {Promise<{ok: boolean, url: string, reason?: string}>}
+ */
+export async function checkSearxng(baseUrl, { fetchImpl = fetch, timeoutMs = 5000 } = {}) {
+  const u = new URL("search", baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
+  u.searchParams.set("q", "meodeo");
+  u.searchParams.set("format", "json");
+  try {
+    const res = await fetchImpl(u, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) });
+    if (res.status === 403) return { ok: false, url: baseUrl, reason: "json-off" };
+    if (res.status === 429) return { ok: false, url: baseUrl, reason: "limiter-on" };
+    if (!res.ok) return { ok: false, url: baseUrl, reason: `http-${res.status}` };
+    if (!(res.headers.get("content-type") || "").includes("json")) return { ok: false, url: baseUrl, reason: "json-off" };
+    return { ok: true, url: baseUrl };
+  } catch (e) {
+    return { ok: false, url: baseUrl, reason: "unreachable" };
+  }
+}
+
+/** Ask each SearXNG in turn; the first one that answers wins. */
+export async function querySearxngAny(query, opts) {
+  const urls = searxngList(opts.baseUrl);
+  let lastErr = new SearxngError("No SearXNG address is set (SEARXNG_URL).");
+  for (const baseUrl of urls) {
+    try {
+      return { ...(await querySearxng(query, { ...opts, baseUrl })), searxngUrl: baseUrl };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
+}
+
 /** Fetch one or more result pages from SearXNG. */
 export async function querySearxng(query, { baseUrl, pages = 2, categories = "videos", safesearch = 1, language = "all", fetchImpl = fetch, timeoutMs = 10000 }) {
   const results = [];

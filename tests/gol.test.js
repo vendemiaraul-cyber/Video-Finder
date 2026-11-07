@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Gol, interleave, isSafePlay } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
+import { parseStart, ERRORS } from "../gol/sites/youtube.js";
 
 const jsonFetch = (routes) => async (url) => {
   const hit = Object.entries(routes).find(([k]) => String(url).includes(k));
@@ -57,7 +58,7 @@ test("YouTube falls back to Piped without a key, and always plays via youtube.co
   ] } });
   const r = await g.search("cats", { sites: ["youtube"] });
   assert.equal(r.videos.length, 1);
-  assert.equal(r.videos[0].play.src, "https://www.youtube.com/embed/OFORsl11qSg?autoplay=1&rel=0");
+  assert.equal(r.videos[0].play.src, "https://www.youtube.com/embed/OFORsl11qSg?autoplay=1&rel=0&playsinline=1");
   assert.equal(r.videos[0].ads, true);
 });
 
@@ -100,7 +101,8 @@ test("Commons, NASA, Odysee and Europeana parse", async () => {
 test("fromUrl recognises many sites and builds official embeds", () => {
   const g = gol();
   const cases = {
-    "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1": ["youtube", "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0"],
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s": ["youtube", "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0&playsinline=1&start=90"],
+    "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ": ["youtube", null],
     "https://youtu.be/dQw4w9WgXcQ": ["youtube", null],
     "https://www.youtube.com/shorts/dQw4w9WgXcQ": ["youtube", null],
     "https://vimeo.com/76979871": ["vimeo", "https://player.vimeo.com/video/76979871?autoplay=1"],
@@ -146,7 +148,7 @@ test("Facebook and Instagram are marked as needing cookies", () => {
 test("SearXNG results keep their own site and are checked against it", async () => {
   const g = gol({ "/api/search?q=": { videos: [
     { id: "dQw4w9WgXcQ", site: "youtube", title: "Y", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", via: "searxng",
-      play: { kind: "iframe", src: "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0" } },
+      play: { kind: "iframe", src: "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0&playsinline=1" } },
     { id: "https://news.example/v/1", site: "web", siteName: "news.example", domain: "news.example", title: "N", url: "https://news.example/v/1",
       play: { kind: "iframe", src: "https://player.news.example/embed/1" } },
     { id: "evil", site: "youtube", title: "E", url: "https://www.youtube.com/watch?v=evil", play: { kind: "iframe", src: "https://evil.example/x" } },
@@ -162,4 +164,19 @@ test("sites marked unavailable are skipped", async () => {
   assert.ok(!g.searchableSites().some((s) => s.id === "searxng"));
   const r = await g.search("x", { sites: ["searxng"] });
   assert.deepEqual(r.status, {});
+});
+
+test("YouTube links keep their start time, Shorts play vertically, and embed errors are explained", () => {
+  const g = gol();
+  assert.equal(parseStart("90"), 90);
+  assert.equal(parseStart("1h2m3s"), 3723);
+  assert.equal(parseStart("45s"), 45);
+  assert.equal(parseStart("junk"), 0);
+  const short = g.fromUrl("https://www.youtube.com/shorts/dQw4w9WgXcQ");
+  assert.equal(short.play.youtube.vertical, true);
+  const timed = g.fromUrl("https://youtu.be/dQw4w9WgXcQ?t=42");
+  assert.equal(timed.play.youtube.start, 42);
+  assert.equal(timed.url, "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s");
+  assert.match(ERRORS[150], /won't play this video here/);
+  assert.equal(typeof g.sites.get("youtube").mount, "function");
 });

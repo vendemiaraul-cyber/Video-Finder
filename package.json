@@ -6,6 +6,8 @@
   "scripts": {
     "test": "node --test tests/*.test.js",
     "start": "node server/server.js",
+    "up": "docker compose up -d",
+    "down": "docker compose down",
     "static": "python3 -m http.server 8000"
   }
 }

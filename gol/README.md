@@ -60,6 +60,10 @@ export default {
     }));
   },
 
+  // Optional: your own player instead of a plain iframe (YouTube uses this
+  // for its IFrame Player API). Return a function that stops playback.
+  mount(video, container) { /* ... */ return () => container.replaceChildren(); },
+
   // Optional: recognise links to the site's videos.
   match: [{ re: /^https?:\/\/example\.com\/v\/(\w+)/,
             video: (m) => ({ id: m[1], play: { kind: "iframe", src: `https://player.example.com/embed/${m[1]}` } }) }],

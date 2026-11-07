@@ -31,18 +31,46 @@ const els = {
 
 const serverBase = () => (settings.serverUrl || "").replace(/\/+$/, "");
 
-async function checkServer() {
+const SEARXNG_PROBLEMS = {
+  "json-off": (u) => `SearXNG at ${u} is running, but its JSON API is off. Add "json" under search.formats in its settings.yml and restart it.`,
+  "limiter-on": (u) => `SearXNG at ${u} is blocking MeoDeo with its limiter. Set server.limiter: false and restart it.`,
+  "unreachable": (u) => `The MeoDeo server can't reach SearXNG at ${u}. Start it with docker compose up -d.`,
+  "not-set": () => "The MeoDeo server has no SearXNG address (SEARXNG_URL).",
+};
+let searxngState = { on: false, text: "Checking…" };
+
+async function checkServer({ fresh = false } = {}) {
   gol.unavailable.set("searxng", "checking…");
+  searxngState = { on: false, text: "Checking…" };
+  showServerState();
   try {
-    const res = await fetch(serverBase() + "/api/health", { signal: AbortSignal.timeout(4000) });
+    const res = await fetch(serverBase() + "/api/health" + (fresh ? "?fresh=1" : ""), { signal: AbortSignal.timeout(8000) });
     const data = res.ok ? await res.json() : null;
     if (data?.app !== "meodeo") throw new Error("no MeoDeo server");
-    if (!data.searxng) gol.unavailable.set("searxng", `server can't reach SearXNG at ${data.searxngUrl}`);
-    else gol.unavailable.delete("searxng");
+    if (data.searxng) {
+      gol.unavailable.delete("searxng");
+      searxngState = { on: true, text: `SearXNG is on ✓ (${data.searxngUrl})` };
+    } else {
+      const text = (SEARXNG_PROBLEMS[data.reason] || SEARXNG_PROBLEMS.unreachable)(data.searxngUrl);
+      gol.unavailable.set("searxng", "SearXNG is off: see Settings");
+      searxngState = { on: false, text };
+    }
   } catch {
-    gol.unavailable.set("searxng", "needs the MeoDeo server (Settings)");
+    gol.unavailable.set("searxng", "SearXNG is off: see Settings");
+    searxngState = { on: false, text: serverBase()
+      ? `No MeoDeo server answered at ${serverBase()}.`
+      : "SearXNG is off: this copy of MeoDeo isn't running on the MeoDeo server." };
   }
+  showServerState();
   renderFilters();
+}
+
+function showServerState() {
+  const state = $("#server-state");
+  if (!state) return;
+  state.textContent = searxngState.text;
+  state.classList.toggle("ok", searxngState.on);
+  $("#searxng-help").hidden = searxngState.on;
 }
 
 /* ---------- site filter chips ---------- */
@@ -68,7 +96,7 @@ function renderFilters() {
     label.append(cb, dot, Object.assign(document.createElement("span"), { textContent: site.name }));
     if (site.ads) label.append(Object.assign(document.createElement("small"), { textContent: "ads", title: "Plays with the site's own ads" }));
     if (missingKey) label.append(Object.assign(document.createElement("small"), { className: "key", textContent: "key" }));
-    else if (why) label.append(Object.assign(document.createElement("small"), { className: "key", textContent: "server" }));
+    else if (why) label.append(Object.assign(document.createElement("small"), { className: "key", textContent: site.id === "searxng" ? "off" : "server" }));
     return label;
   }));
 }
@@ -150,11 +178,12 @@ function openPlayer(video) {
   const link = $("#player-link");
   link.href = video.url;
   link.textContent = `Watch on ${video.domain} ↗`;
-  player(video, els.frame, { gol });
+  stopPlayer = player(video, els.frame, { gol });
   els.player.showModal();
 }
 
-els.player.addEventListener("close", () => els.frame.replaceChildren());
+let stopPlayer = null;
+els.player.addEventListener("close", () => { stopPlayer?.(); stopPlayer = null; els.frame.replaceChildren(); });
 $("#player-close").addEventListener("click", () => els.player.close());
 els.player.addEventListener("click", (e) => { if (e.target === els.player) els.player.close(); });
 
@@ -164,10 +193,7 @@ function fillSettings() {
   const f = els.settingsForm;
   f.serverUrl.value = settings.serverUrl || "";
   f.autoOpenCookies.checked = settings.autoOpenCookies === "on";
-  const why = gol.unavailable.get("searxng");
-  $("#server-state").textContent = why
-    ? `SearXNG: ${why}. Run the MeoDeo server (npm start) and leave this empty when you open MeoDeo from it.`
-    : "SearXNG: connected ✓";
+  showServerState();
   const box = $("#site-keys");
   box.querySelectorAll("label").forEach((n) => n.remove());
   for (const site of gol.sites.values()) {
@@ -183,6 +209,15 @@ function fillSettings() {
 }
 
 $("#open-settings").addEventListener("click", () => { fillSettings(); els.settings.showModal(); });
+$("#check-server").addEventListener("click", () => {
+  const typed = els.settingsForm.serverUrl.value.trim();
+  if (typed !== (settings.serverUrl || "")) {
+    settings = { ...settings, serverUrl: typed || undefined };
+    store.set(STORE, settings);
+    gol.keys = settings;
+  }
+  checkServer({ fresh: true });
+});
 $("#clear-keys").addEventListener("click", () => {
   settings = { ...DEFAULTS, serverUrl: settings.serverUrl, autoOpenCookies: settings.autoOpenCookies };
   store.set(STORE, settings);

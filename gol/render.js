@@ -15,7 +15,7 @@ export function formatCount(n) {
   return n == null ? "" : new Intl.NumberFormat(undefined, { notation: "compact" }).format(n);
 }
 
-function el(tag, attrs = {}, ...children) {
+export function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null || v === false) continue;
@@ -76,7 +76,11 @@ export function card(video, { gol, onOpen } = {}) {
  */
 export function player(video, container, { gol } = {}) {
   container.replaceChildren();
+  container.classList.remove("gol-vertical");
   const { play } = video;
+  // A site can bring its own player (e.g. YouTube's IFrame Player API).
+  const site = gol?.sites.get(video.site);
+  if (play.kind === "iframe" && site?.mount) return site.mount(video, container) || (() => container.replaceChildren());
   if (play.kind === "iframe") {
     const src = play.src.replace("{parent}", encodeURIComponent(location.hostname || "localhost"));
     const sandboxed = gol?.sites.get(video.site)?.sandboxed;

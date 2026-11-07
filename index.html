@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>MeoDeo</title>
   <meta name="description" content="Search videos across many websites at once. Powered by Gol and SearXNG.">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
@@ -58,7 +59,17 @@
           <label>MeoDeo server address
             <input type="url" name="serverUrl" autocomplete="off" placeholder="empty = this website (e.g. http://localhost:8787)">
           </label>
-          <p class="hint" id="server-state">SearXNG search runs through the MeoDeo Node server (<code>npm start</code>). Leave the address empty when you open MeoDeo from that server.</p>
+          <p class="state" id="server-state" role="status">Checking…</p>
+          <div id="searxng-help" class="help" hidden>
+            <p><strong>Turn SearXNG on</strong> (on a computer with Docker):</p>
+            <ol>
+              <li>Download MeoDeo: <code>git clone https://github.com/vendemiaraul-cyber/Video-Finder</code></li>
+              <li>In that folder run <code>docker compose up -d</code></li>
+              <li>Open <code>http://localhost:8787</code>, or from your phone on the same Wi-Fi, <code>http://&lt;computer's IP&gt;:8787</code></li>
+            </ol>
+            <p class="hint">Already have SearXNG? Turn its JSON API on (<code>search.formats: [html, json]</code>), then run <code>SEARXNG_URL=http://your-searxng npm start</code>. Leave the address above empty when you open MeoDeo from its own server.</p>
+          </div>
+          <button type="button" id="check-server" class="secondary">Check again</button>
         </fieldset>
         <fieldset>
           <legend>🍪 Cookies</legend>

@@ -20,6 +20,8 @@ Type what you want to watch. MeoDeo asks lots of video websites at the same time
 | Vimeo, Twitch, TikTok, TED, Streamable, Bilibili, Facebook, Instagram, Loom | Found through SearXNG | ✅ official players | Twitch and Facebook show their own ads |
 | Any other website with a video | Found through SearXNG, checked by the MeoDeo server | its own player if it allows embedding, otherwise opens on the site | - |
 
+**YouTube player:** MeoDeo uses YouTube's official IFrame Player API. Videos play inside the page on phones (no forced fullscreen), links with a time (`&t=1m30s`) start there, and Shorts play in a vertical player. When YouTube won't play a video on other sites, MeoDeo shows an **Open in YouTube** button (it opens the YouTube app on phones) instead of a dead "Video unavailable" screen.
+
 **Ads:** MeoDeo never downloads, re-streams or strips videos. Ad-supported sites always play in their own official player, so their ads run normally and creators still get paid. These sites have an **ADS** tag, and the player shows a note when one is playing.
 
 ## Powered by Gol
@@ -41,9 +43,25 @@ Type what you want to watch. MeoDeo asks lots of video websites at the same time
 
 **Cookies setting (⚙ Settings → 🍪 Cookies, on by default):** a video that needs its site's own cookies can't work inside MeoDeo, so it opens straight on its own website in a new tab, where your cookies and sign-in work. Turn it off to see MeoDeo's "watch on site" panel instead.
 
-### Run it
+### Turn SearXNG on: one command
 
-You need your own SearXNG with the JSON API on. In SearXNG's `settings.yml`:
+On any computer with [Docker](https://docs.docker.com/get-docker/):
+
+```bash
+git clone https://github.com/vendemiaraul-cyber/Video-Finder
+cd Video-Finder
+docker compose up -d          # or: npm run up
+```
+
+Open **http://localhost:8787**. From your phone on the same Wi-Fi, open `http://<the computer's IP>:8787`. This starts SearXNG, already set up for MeoDeo (`searxng/settings.yml`: JSON API on, limiter off), next to the MeoDeo server. Stop it with `docker compose down`.
+
+Optional: copy `.env.example` to `.env` and set your own `SEARXNG_SECRET`.
+
+MeoDeo's ⚙ Settings shows whether SearXNG is on, explains what's wrong when it isn't (not running, JSON API off, limiter on), and has a **Check again** button.
+
+### Use your own SearXNG
+
+Your SearXNG needs the JSON API on. In its `settings.yml`:
 
 ```yaml
 search:
@@ -63,7 +81,7 @@ SEARXNG_URL=http://127.0.0.1:8888 npm start
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SEARXNG_URL` | `http://127.0.0.1:8888` | your SearXNG |
+| `SEARXNG_URL` | `http://127.0.0.1:8888` | your SearXNG; several, comma-separated, are tried in order |
 | `PORT` / `HOST` | `8787` / `127.0.0.1` | where MeoDeo listens |
 | `SEARXNG_PAGES` | `2` | SearXNG result pages per search (1-5) |
 | `SEARXNG_CATEGORIES` | `videos` | e.g. `videos,general` to check more pages |

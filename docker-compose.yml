@@ -1,0 +1,42 @@
+# MeoDeo + SearXNG with one command:
+#
+#   docker compose up -d
+#
+# then open http://localhost:8787 (from another device on your Wi-Fi:
+# http://<this computer's IP>:8787). Stop with: docker compose down
+name: meodeo
+
+services:
+  searxng:
+    image: docker.io/searxng/searxng:${SEARXNG_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      # Any long random string. Set your own in a .env file (see .env.example).
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-meodeo-please-change-this-secret-0b7f2c}
+    volumes:
+      # MeoDeo's settings: JSON API on, limiter off.
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - searxng-cache:/var/cache/searxng/
+    # No ports: only MeoDeo talks to SearXNG. To open SearXNG's own page too,
+    # uncomment the next two lines and visit http://localhost:8080
+    # ports:
+    #   - "127.0.0.1:8080:8080"
+
+  meodeo:
+    image: docker.io/library/node:22-alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: ["node", "server/server.js"]
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      SEARXNG_URL: http://searxng:8080
+    volumes:
+      - ./:/app:ro
+    ports:
+      - "${MEODEO_PORT:-8787}:8787"
+    depends_on:
+      - searxng
+
+volumes:
+  searxng-cache:

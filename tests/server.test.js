@@ -4,7 +4,7 @@ import http from "node:http";
 import { Gol } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
 import { extract, allowsFraming, probe } from "../server/probe.js";
-import { parseLength, querySearxng, toVideos } from "../server/searxng.js";
+import { parseLength, querySearxng, querySearxngAny, checkSearxng, toVideos } from "../server/searxng.js";
 import { fetchPage, isPrivateAddress } from "../server/net.js";
 import { createServer, config } from "../server/server.js";
 
@@ -169,6 +169,37 @@ test("the server serves the app, health and search", async () => {
     assert.equal(data.videos[0].duration, 61);
     assert.equal((await fetch(at + "/api/search")).status, 400);
     assert.equal((await fetch(at + "/api/search?q=x")).headers.get("access-control-allow-origin"), "*");
+  } finally {
+    srv.close();
+  }
+});
+
+test("checkSearxng explains why SearXNG is off", async () => {
+  const at = (status, body, type) => async () => jsonResponse(status, body, type);
+  assert.deepEqual(await checkSearxng("http://sx", { fetchImpl: at(200, searxReply([])) }), { ok: true, url: "http://sx" });
+  assert.equal((await checkSearxng("http://sx", { fetchImpl: at(403, "Forbidden", "text/html") })).reason, "json-off");
+  assert.equal((await checkSearxng("http://sx", { fetchImpl: at(200, "<html>", "text/html") })).reason, "json-off");
+  assert.equal((await checkSearxng("http://sx", { fetchImpl: at(429, "Too many", "text/html") })).reason, "limiter-on");
+  assert.equal((await checkSearxng("http://sx", { fetchImpl: async () => { throw new Error("ECONNREFUSED"); } })).reason, "unreachable");
+});
+
+test("several SearXNG addresses are tried in order", async () => {
+  const fetchImpl = async (u) => String(u).startsWith("http://down")
+    ? (() => { throw Object.assign(new Error("fetch failed"), { cause: { code: "ECONNREFUSED" } }); })()
+    : jsonResponse(200, searxReply([{ url: "https://vimeo.com/1" }]));
+  const r = await querySearxngAny("x", { baseUrl: "http://down:8080, http://up:8080", pages: 1, fetchImpl });
+  assert.equal(r.searxngUrl, "http://up:8080");
+  assert.equal(r.results.length, 1);
+});
+
+test("health reports the reason when SearXNG's JSON API is off", async () => {
+  const srv = createServer({ ...config({}), searxngUrl: "http://sx.local" }, { fetchImpl: async () => jsonResponse(403, "Forbidden", "text/html") });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  try {
+    const h = await (await fetch(`http://127.0.0.1:${srv.address().port}/api/health`)).json();
+    assert.equal(h.searxng, false);
+    assert.equal(h.reason, "json-off");
+    assert.equal((await fetch(`http://127.0.0.1:${srv.address().port}/searxng/settings.yml`)).status, 404);
   } finally {
     srv.close();
   }
