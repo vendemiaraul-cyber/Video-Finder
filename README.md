@@ -189,3 +189,49 @@ Opening `index.html` directly as a file won't work, because browsers block ES mo
 ```bash
 npm test      # Node 18+, no dependencies
 ```
+
+## Dailymotion Player ID
+
+Since 28 September 2026 Dailymotion only plays embeds that include a **Player ID**
+(`geo.dailymotion.com/player/<ID>.html`); the old `player.html` link answers 403
+and shows a black screen. Until MeoDeo has one, Dailymotion videos open on
+dailymotion.com instead of playing inside MeoDeo.
+
+To turn playing back on (free):
+
+1. Sign in (or make a free account) at <https://www.dailymotion.com/partner>.
+2. Go to **Players → Create player**, keep the defaults, save.
+3. Copy its ID (it starts with `x`, e.g. `xabc1`) and put it in `PLAYER_ID` in
+   `gol/sites/dailymotion.js`. It's public, not a secret.
+
+Anyone can also paste their own Player ID in MeoDeo's Settings.
+
+## Languages
+
+The 🌐 menu translates MeoDeo with Google's free website translator
+(`translate.google.com/translate_a/element.js`: no key, no account, no billing).
+Google's script is only loaded after someone picks a language other than English.
+Site names, the MeoDeo name and links are marked `translate="no"`.
+
+## Rules, reports and takedowns
+
+- **Content filter** (`gol/safety.js`): blocks adult, shock and piracy websites
+  and words in search results (browser, SearXNG server, skill) and in feed posts,
+  on top of each site's own safe search.
+- **Terms, Rules, Privacy, Copyright**: `legal.html`, linked from the footer.
+  Sign-up requires confirming 13+ and agreeing to the Terms.
+- **Report** button on feed posts (`POST /api/report`): hidden automatically once
+  3 different people report a post.
+- **Takedown requests** (`POST /api/takedown`, form on `legal.html#copyright`):
+  the link is removed at once from the feed and from search results
+  (`GET /api/takedown` lists removed links), then reviewed.
+
+Review in Cloudflare → D1 → your database → Console:
+
+```sql
+SELECT * FROM takedowns ORDER BY id DESC;                    -- requests
+SELECT post_id, reason, details FROM reports ORDER BY id DESC; -- reports
+UPDATE takedowns SET status = 'rejected' WHERE id = 1;       -- put a link back
+UPDATE posts SET hidden = 0 WHERE id = 1;                    -- restore a post
+DELETE FROM posts WHERE id = 1;                              -- delete a post for good
+```

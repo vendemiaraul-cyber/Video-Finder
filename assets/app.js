@@ -2,6 +2,8 @@ import { Gol, interleave } from "../gol/gol.js";
 import { rank } from "../gol/relevance.js";
 import sites from "../gol/sites/index.js";
 import { card, player, badge, formatCount, showFallback } from "../gol/render.js";
+import { initLanguages } from "./translate.js";
+import { isSafe, canonicalUrl } from "../gol/safety.js";
 
 const $ = (s) => document.querySelector(s);
 const STORE = "meodeo.settings.v2";
@@ -88,6 +90,13 @@ function showServerState() {
   $("#searxng-help").hidden = searxngState.on;
 }
 
+/* ---------- content rules ---------- */
+// Adult/shock content and links removed after a takedown request never show.
+let removedLinks = new Set();
+fetch("/api/takedown", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null))
+  .then((d) => { if (Array.isArray(d?.removed)) removedLinks = new Set(d.removed); }).catch(() => {});
+const allowed = (videos) => videos.filter((v) => isSafe(v) && !removedLinks.has(canonicalUrl(v.url)));
+
 /* ---------- site filter chips ---------- */
 
 function renderFilters() {
@@ -96,7 +105,7 @@ function renderFilters() {
     const missingKey = !gol.hasKeys(site);
     const why = gol.unavailable.get(site.id) || (missingKey ? `Add a ${site.name} API key in Settings to search it` : "");
     const label = document.createElement("label");
-    label.className = "chip" + (why ? " chip-off" : "");
+    label.className = "chip notranslate" + (why ? " chip-off" : "");
     label.title = why || `Search ${site.id === "searxng" ? "the web through SearXNG" : site.domain}`;
     const cb = Object.assign(document.createElement("input"), { type: "checkbox", value: site.id,
       checked: !why && !off.has(site.id), disabled: !!why });
@@ -153,7 +162,7 @@ async function search(query) {
   // unrelated titles...) go below, behind "Show other results".
   const draw = () => {
     if (id !== run) return;
-    let videos = interleave(ids.map((s) => perSite[s] || []));
+    let videos = allowed(interleave(ids.map((s) => perSite[s] || [])));
     if (settings.playableOnly === "on") videos = videos.filter(playsHere);
     const { main, others } = rank(query, videos);
     els.results.replaceChildren(...main.map((v) => card(v, { gol, onOpen: open })));
@@ -166,6 +175,7 @@ async function search(query) {
   });
   if (id !== run) return;
   draw();
+  videos = allowed(videos);
   if (settings.playableOnly === "on") videos = videos.filter(playsHere);
   const { main, others } = rank(query, videos);
   const websites = new Set(main.map((v) => v.domain)).size;
@@ -363,6 +373,36 @@ const timeAgo = (ms) => {
   return "just now";
 };
 
+/* report dialog */
+let reporting = null;
+function openReport(post, node) {
+  reporting = { post, node };
+  $("#report-form").reset();
+  $("#report-error").hidden = true;
+  $("#report-what").textContent = post.video?.title || "this post";
+  $("#report").showModal();
+}
+$("#report-form").addEventListener("submit", async (e) => {
+  if (e.submitter?.value !== "send" || !reporting) return;
+  e.preventDefault();
+  const reason = new FormData(e.target).get("reason");
+  const err = $("#report-error");
+  if (!reason) { err.textContent = "Pick a reason."; err.hidden = false; return; }
+  e.submitter.disabled = true;
+  try {
+    const out = await api("/api/report", { method: "POST", body: { postId: reporting.post.id, reason, details: $("#report-details").value } });
+    if (out.hidden) reporting.node.remove();
+    $("#report").close();
+    $("#feed-status").textContent = reason === "copyright"
+      ? "Thanks, we got your report. If you own the rights, also send a takedown request (Copyright page) so the video comes down right away."
+      : "Thanks, we got your report. Posts that several people report are hidden.";
+  } catch (ex) {
+    err.textContent = ex.message; err.hidden = false;
+  } finally {
+    e.submitter.disabled = false;
+  }
+});
+
 function postCard(post) {
   const raw = post.video || {};
   const v = gol.normalize(gol.sites.get(raw.site) || gol.sites.get("web"), raw);
@@ -382,6 +422,10 @@ function postCard(post) {
       catch (err) { del.disabled = false; $("#feed-status").textContent = "Couldn't delete: " + err.message; }
     });
     meta.append(del);
+  } else {
+    const rep = Object.assign(document.createElement("button"), { type: "button", className: "post-report", textContent: "Report" });
+    rep.addEventListener("click", (e) => { e.stopPropagation(); openReport(post, node); });
+    meta.append(rep);
   }
   if (post.caption) meta.append(Object.assign(document.createElement("p"), { className: "post-caption", textContent: post.caption }));
   meta.addEventListener("click", (e) => e.stopPropagation());
@@ -441,6 +485,8 @@ function setAuthMode(mode) {
   $("#auth-title").textContent = mode === "login" ? "Sign in" : "Create a MeoDeo account";
   $("#auth-submit").textContent = mode === "login" ? "Sign in" : "Create account";
   $("#auth-password").autocomplete = mode === "login" ? "current-password" : "new-password";
+  $("#auth-agree-row").hidden = mode === "login";
+  $("#auth-agree").required = mode === "signup";
 }
 function openAuth(mode) {
   const signedIn = !!me.user;
@@ -466,7 +512,8 @@ $("#auth-form").addEventListener("submit", async (e) => {
   $("#auth-submit").disabled = true;
   try {
     const data = await api(authMode === "login" ? "/api/auth/login" : "/api/auth/signup", {
-      method: "POST", body: { username: $("#auth-username").value.trim(), password: $("#auth-password").value },
+      method: "POST", body: { username: $("#auth-username").value.trim(), password: $("#auth-password").value,
+        ...(authMode === "signup" ? { agree: $("#auth-agree").checked } : {}) },
     });
     me.user = data.user;
     $("#auth-password").value = "";
@@ -614,4 +661,9 @@ loadMe().then(() => { if (location.hash === "#feed") loadFeed(true); });
 const initial = new URLSearchParams(location.search).get("q");
 checkServer().then(() => {
   if (initial) { els.q.value = initial; search(initial); }
+});
+
+// Languages (Google's free website translator, loaded only when a language is picked).
+initLanguages(document.getElementById("lang"), {
+  onError: () => { const st = document.getElementById("status"); if (st) st.textContent = "Couldn't load the translator right now. Check your connection, or try again later."; },
 });

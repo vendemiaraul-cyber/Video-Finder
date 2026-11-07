@@ -11,17 +11,20 @@
 </head>
 <body>
   <header class="top">
-    <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="26" height="26"> MeoDeo</a>
+    <a class="brand notranslate" translate="no" href="./"><img src="assets/favicon.svg" alt="" width="26" height="26"> MeoDeo</a>
     <form id="search-form" class="search" role="search">
       <input id="q" name="q" type="search" placeholder="Search videos on every site…" maxlength="300" autocomplete="off" autofocus>
       <button type="submit">Search</button>
     </form>
     <nav class="tabs" aria-label="Views">
       <a href="#search" id="tab-search" class="tab">Search</a>
-      <a href="#feed" id="tab-feed" class="tab">Feed</a>
+      <a href="#feed" id="tab-feed" class="tab notranslate" translate="no">Feed</a>
     </nav>
     <button id="account-btn" class="pill-btn" type="button">Sign in</button>
     <button id="open-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings">⚙</button>
+    <label class="lang" title="Language (translated by Google)"><span aria-hidden="true">🌐</span>
+      <select id="lang" aria-label="Language"></select></label>
+    <div id="gt-host" hidden></div>
     <div id="site-filters" class="filters" aria-label="Websites to search"></div>
   </header>
 
@@ -40,7 +43,7 @@
 
     <div id="view-feed" hidden>
       <div class="feed-head">
-        <h2>Feed</h2>
+        <h2 translate="no" class="notranslate">Feed</h2>
         <p class="status">Videos shared by MeoDeo users. Anyone can watch; sign in to post.</p>
       </div>
       <form id="post-form" class="post-form" hidden>
@@ -48,6 +51,7 @@
         <input id="post-url" name="url" type="url" required placeholder="https://…" autocomplete="off">
         <label for="post-caption">Caption (optional)</label>
         <input id="post-caption" name="caption" type="text" maxlength="280" placeholder="Why it's worth watching" autocomplete="off">
+        <p class="hint">Only share videos you're allowed to share. No adult, violent, hateful or pirated content. <a href="legal.html#rules" target="_blank">Rules</a></p>
         <div class="post-actions"><button class="primary" type="submit">Post</button><span id="post-status" class="status" role="status"></span></div>
       </form>
       <p id="post-signin" class="post-signin" hidden><button id="post-signin-btn" class="primary" type="button">Sign in to post</button></p>
@@ -59,7 +63,11 @@
 
   <footer class="foot">
     MeoDeo · powered by <a href="https://github.com/vendemiaraul-cyber/Video-Finder/tree/main/gol" target="_blank" rel="noopener">Gol</a> ·
-    videos play in each website's own player and stay on that website
+    videos play in each website's own player and stay on that website. MeoDeo doesn't host or copy any video.
+    <nav class="foot-links" aria-label="Legal">
+      <a href="legal.html#terms">Terms</a> · <a href="legal.html#rules">Rules</a> · <a href="legal.html#privacy">Privacy</a> ·
+      <a href="legal.html#copyright">Copyright &amp; takedowns</a>
+    </nav>
   </footer>
 
   <dialog id="player" aria-labelledby="player-title">
@@ -107,6 +115,8 @@
         </div>
         <label>Username <input id="auth-username" name="username" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}"></label>
         <label>Password <input id="auth-password" name="password" type="password" autocomplete="current-password" required minlength="8" maxlength="200"></label>
+        <label class="check" id="auth-agree-row" hidden><input type="checkbox" id="auth-agree">
+          <span>I'm 13 or older and I agree to MeoDeo's <a href="legal.html#terms" target="_blank">Terms</a> and <a href="legal.html#rules" target="_blank">Rules</a>.</span></label>
         <p id="auth-error" class="auth-error" role="alert" hidden></p>
         <p class="hint">Your MeoDeo account is only for posting to the public feed. Usernames are public; passwords are stored encrypted (hashed).</p>
       </div>
@@ -116,6 +126,30 @@
       <div class="player-foot">
         <button type="button" id="auth-logout" class="link-btn" hidden>Sign out</button>
         <button value="submit" id="auth-submit" class="primary">Sign in</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="report" aria-labelledby="report-title">
+    <form method="dialog" id="report-form">
+      <div class="player-head">
+        <h2 id="report-title">Report a post</h2>
+        <button class="icon-btn" value="cancel" aria-label="Close" formnovalidate>✕</button>
+      </div>
+      <div class="settings-body">
+        <p class="hint">What's wrong with “<span id="report-what"></span>”?</p>
+        <label class="radio"><input type="radio" name="reason" value="copyright"><span>It uses my work or someone else's without permission (copyright)</span></label>
+        <label class="radio"><input type="radio" name="reason" value="adult"><span>Sexual or adult content</span></label>
+        <label class="radio"><input type="radio" name="reason" value="violence"><span>Violent, shocking or dangerous</span></label>
+        <label class="radio"><input type="radio" name="reason" value="hate"><span>Hate, harassment or bullying</span></label>
+        <label class="radio"><input type="radio" name="reason" value="spam"><span>Spam or scam</span></label>
+        <label class="radio"><input type="radio" name="reason" value="other"><span>Something else</span></label>
+        <label>Details (optional) <textarea id="report-details" maxlength="1000" rows="3"></textarea></label>
+        <p id="report-error" class="auth-error" role="alert" hidden></p>
+        <p class="hint">Rights holder? A <a href="legal.html#copyright" target="_blank">takedown request</a> removes the video right away.</p>
+      </div>
+      <div class="player-foot">
+        <button value="send" class="primary">Send report</button>
       </div>
     </form>
   </dialog>

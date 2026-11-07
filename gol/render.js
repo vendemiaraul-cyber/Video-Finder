@@ -34,7 +34,7 @@ export function badge(video, gol) {
   const fromSearxng = video.via === "searxng";
   const site = gol?.sites.get(fromSearxng ? "searxng" : video.site);
   return el("span", {
-    class: "gol-badge", style: { background: site?.color || "#5d6573" },
+    class: "gol-badge notranslate", translate: "no", style: { background: site?.color || "#5d6573" },
     title: fromSearxng ? `Found through SearXNG${video.foundBy ? ` (${video.foundBy})` : ""}; plays from ${video.domain}` : null,
     text: fromSearxng ? "SearXNG Results" : video.siteName,
   });
@@ -64,7 +64,7 @@ export function card(video, { gol, onOpen } = {}) {
       video.note ? el("p", { class: "gol-note", text: video.note }) : null,
       el("p", { class: "gol-origin" },
         badge(video, gol),
-        el("a", { class: "gol-domain", href: video.url, target: "_blank", rel: "noopener noreferrer",
+        el("a", { class: "gol-domain notranslate", translate: "no", href: video.url, target: "_blank", rel: "noopener noreferrer",
                   text: video.domain, onclick: (e) => e.stopPropagation() }),
         video.ads ? el("span", { class: "gol-ads", title: "This site shows its own ads in its player", text: "ads" }) : null,
         video.needsCookies ? el("span", { class: "gol-cookies", title: "This site needs its own cookies", text: "🍪 cookies" }) : null,
@@ -186,7 +186,7 @@ function linkPanel(video, container, { failed = false } = {}) {
   const inside = video.play.inside;
   return el("div", { class: "gol-linkpanel" },
     video.thumbnail ? el("img", { src: video.thumbnail, alt: "", referrerpolicy: "no-referrer" }) : null,
-    el("p", { text: failed
+    el("p", { text: video.linkNote && !failed ? video.linkNote : failed
       ? `This video didn't start here. ${video.domain} may block playing on other websites.` + (inside ? " You can try its page here, or watch it on the site." : "")
       : video.needsCookies
       ? `${video.domain} needs its own cookies (consent or sign-in).` + (inside ? " You can open it here and accept them, or watch on the site." : " It only plays on the site itself.")

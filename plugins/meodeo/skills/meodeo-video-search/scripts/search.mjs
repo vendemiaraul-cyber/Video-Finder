@@ -11,6 +11,7 @@
  * MEODEO_URL overrides the site (default https://video-finder.pages.dev).
  */
 import { rank } from "./relevance.js"; // same sorting as the MeoDeo site (copy of gol/relevance.js)
+import { isSafe } from "./safety.js"; // same content rules as the MeoDeo site (copy of gol/safety.js)
 
 const BASE = (process.env.MEODEO_URL || "https://video-finder.pages.dev").replace(/\/+$/, "");
 
@@ -80,7 +81,7 @@ async function main() {
   for (let i = 0; videos.length < o.limit && lists.some((l) => i < l.length); i++) {
     for (const l of lists) {
       const v = l[i];
-      if (!v || videos.length >= o.limit) continue;
+      if (!v || videos.length >= o.limit || !isSafe(v)) continue;
       const key = `${v.site}:${v.id}`;
       if (seen.has(key) || seen.has(v.url)) continue;
       seen.add(key); seen.add(v.url);

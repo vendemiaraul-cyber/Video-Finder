@@ -29,6 +29,7 @@
  * @property {number} [views]
  * @property {string} [published] YYYY-MM-DD
  * @property {string} [via]       which search found it, e.g. "searxng"
+ * @property {(video: object, keys: object) => void} [prepare] adjust a video to the current settings
  * @property {boolean} [needsCookies] the site only works with its own cookies: open it there
  * @property {string} [note]      short note, e.g. "YouTube video on bbc.com"
  */
@@ -162,6 +163,8 @@ export class Gol {
       ...v,
     };
     video.title = String(video.title || "(untitled)").trim();
+    // A site can adjust its videos to the current settings (e.g. Dailymotion's player ID).
+    if (site.prepare) site.prepare(video, this.keys || {});
     if (!isHttps(video.url)) return null;
     if (video.thumbnail && !isHttps(video.thumbnail)) delete video.thumbnail;
     if (!isSafePlay(site, video.play)) return null;

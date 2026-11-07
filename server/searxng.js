@@ -4,6 +4,10 @@
  */
 import { probe, isoDuration } from "./probe.js";
 import { outcomeOf, refusesEmbedding } from "./site-policy.js";
+import { isSafe } from "../gol/safety.js";
+
+// Adult, shock and piracy results never reach MeoDeo (on top of SearXNG safe search).
+const safeResults = (results) => (results || []).filter((r) => r && isSafe({ url: r.url, title: r.title, description: r.content }));
 
 export class SearxngError extends Error {}
 
@@ -123,6 +127,7 @@ async function pool(items, limit, fn) {
  *  - other links are probed; pages with no video are dropped
  */
 export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6, probeOpts = {}, cache, skip = new Set(DEFAULT_SKIP), perSite = 3, policy }) {
+  results = safeResults(results);
   const stats = { results: results.length, recognised: 0, skipped: 0, probed: 0, remembered: 0, kept: 0, dropped: 0, cookies: 0 };
   let probes = 0;
   // Check results from video sources before general web pages: they're the
@@ -225,6 +230,7 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
  * a video source listed them).
  */
 export async function splitResults(results, { gol, skip = new Set(DEFAULT_SKIP), perSite = 3, policy } = {}) {
+  results = safeResults(results);
   const isVideoResult = (r) => r.category === "videos" || r.template === "videos.html";
   const ordered = [...results.filter(isVideoResult), ...results.filter((r) => !isVideoResult(r))];
   const perHost = new Map();

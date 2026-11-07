@@ -9,6 +9,8 @@
  * - IP addresses are only used, hashed, for rate limits.
  */
 
+import { unsafeReason, canonicalUrl } from "../gol/safety.js";
+
 const DAY = 86_400_000;
 const SESSION_DAYS = 30;
 // Cloudflare's free plan allows 10 ms of CPU per request, so PBKDF2 can't use
@@ -16,7 +18,9 @@ const SESSION_DAYS = 30;
 // for part of that.
 export const PBKDF2_ITERATIONS = 20_000;
 export const USERNAME = /^[a-z0-9_]{3,20}$/i;
-export const LIMITS = { signupsPerIpPerDay: 5, loginFailsPerIpPerHour: 20, postsPerUserPerDay: 30, captionLength: 280 };
+export const LIMITS = { signupsPerIpPerDay: 5, loginFailsPerIpPerHour: 20, postsPerUserPerDay: 30, captionLength: 280,
+  reportsPerIpPerDay: 30, reportsToHide: 3, takedownsPerIpPerDay: 10 };
+export const REPORT_REASONS = ["copyright", "adult", "violence", "hate", "spam", "other"];
 
 export class FeedError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
@@ -38,6 +42,14 @@ const SCHEMA = [
 const MIGRATIONS = [
   "ALTER TABLE site_policy ADD COLUMN reports INTEGER NOT NULL DEFAULT 0",
   "CREATE TABLE IF NOT EXISTS probe_cache (url TEXT PRIMARY KEY, result_json TEXT NOT NULL, checked_at INTEGER NOT NULL)",
+  // Moderation: reported posts are hidden after a few reports; takedown requests hide a link at once.
+  "ALTER TABLE posts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0",
+  `CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY AUTOINCREMENT, post_id INTEGER NOT NULL, reporter TEXT NOT NULL,
+     reason TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, UNIQUE (post_id, reporter))`,
+  `CREATE TABLE IF NOT EXISTS takedowns (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL, canonical TEXT NOT NULL,
+     name TEXT NOT NULL, contact TEXT NOT NULL, work TEXT NOT NULL, kind TEXT NOT NULL, details TEXT NOT NULL DEFAULT '',
+     status TEXT NOT NULL DEFAULT 'removed', created_at INTEGER NOT NULL)`,
+  "CREATE INDEX IF NOT EXISTS takedowns_canonical ON takedowns (canonical, status)",
 ];
 const ready = new WeakSet();
 export async function ensureSchema(db) {
@@ -85,7 +97,8 @@ async function createSession(db, userId, now = Date.now()) {
   return token;
 }
 
-export async function signup(db, { username, password } = {}, ip) {
+export async function signup(db, { username, password, agree } = {}, ip) {
+  if (agree !== true) throw new FeedError(400, "terms", "Please confirm you're 13 or older and agree to MeoDeo's Terms and Rules.");
   username = String(username || "").trim();
   password = String(password || "");
   if (!USERNAME.test(username)) throw new FeedError(400, "bad-username", "Usernames are 3 to 20 letters, numbers or _.");
@@ -158,6 +171,10 @@ export async function createPost(db, user, { url, caption } = {}, { resolveVideo
   const video = await resolveVideo(parsed.href);
   if (!video) throw new FeedError(422, "no-video", "MeoDeo couldn't find a video at that link.");
   if (!playsInMeoDeo(video)) throw new FeedError(422, "not-embeddable", `${video.domain} doesn't let its videos play in MeoDeo, so it can't go in the feed.`);
+  if (unsafeReason({ ...video, description: caption + " " + (video.description || "") })) {
+    throw new FeedError(422, "not-allowed", "That video breaks MeoDeo's rules (no adult, shock or pirated content), so it can't go in the feed.");
+  }
+  if (await isTakenDown(db, [parsed.href, video.url])) throw new FeedError(451, "taken-down", "That video was removed from MeoDeo after a copyright or legal request.");
   const row = await db.prepare(`INSERT INTO posts (user_id, url, caption, video_json, created_at) VALUES (?, ?, ?, ?, ?)
     RETURNING id, created_at`).bind(user.id, parsed.href, caption, JSON.stringify(slim(video)), Date.now()).first();
   return { id: row.id, username: user.username, caption, createdAt: row.created_at, video: slim(video), mine: true };
@@ -169,7 +186,7 @@ export async function listFeed(db, { before, limit = 20, user } = {}) {
   const { results } = await db.prepare(`SELECT posts.id AS id, posts.user_id AS user_id, posts.caption AS caption, posts.video_json AS video_json,
       posts.created_at AS created_at, users.username AS username
     FROM posts JOIN users ON users.id = posts.user_id
-    WHERE (?1 IS NULL OR posts.id < ?1) ORDER BY posts.id DESC LIMIT ?2`).bind(cursor, limit).all();
+    WHERE posts.hidden = 0 AND (?1 IS NULL OR posts.id < ?1) ORDER BY posts.id DESC LIMIT ?2`).bind(cursor, limit).all();
   const posts = results.map((r) => ({
     id: r.id, username: r.username, caption: r.caption, createdAt: r.created_at,
     video: JSON.parse(r.video_json), mine: !!user && user.id === r.user_id,
@@ -181,4 +198,75 @@ export async function deletePost(db, user, id) {
   if (!user) throw new FeedError(401, "login-required", "Sign in first.");
   const res = await db.prepare("DELETE FROM posts WHERE id = ? AND user_id = ?").bind(Number(id), user.id).run();
   if (!res.meta?.changes) throw new FeedError(404, "not-found", "That post doesn't exist or isn't yours.");
+}
+
+/* ---------- moderation: reports and takedowns ---------- */
+
+/** Who is reporting: the account when signed in, otherwise a hashed IP (never the IP itself). */
+const reporterKey = async (user, ip) => (user ? `user:${user.id}` : await ipKey("reporter", ip));
+
+/**
+ * Report a feed post. After LIMITS.reportsToHide different people report it,
+ * the post is hidden from the feed (the owner can restore it in the D1 console).
+ */
+export async function reportPost(db, user, { postId, reason, details } = {}, ip) {
+  const id = Number(postId);
+  if (!(id > 0)) throw new FeedError(400, "bad-post", "Which post?");
+  if (!REPORT_REASONS.includes(reason)) throw new FeedError(400, "bad-reason", "Pick a reason for the report.");
+  details = String(details || "").trim().slice(0, 1000);
+  await rateLimit(db, await ipKey("report", ip), DAY, LIMITS.reportsPerIpPerDay);
+  const post = await db.prepare("SELECT id, user_id FROM posts WHERE id = ?").bind(id).first();
+  if (!post) throw new FeedError(404, "not-found", "That post doesn't exist anymore.");
+  const reporter = await reporterKey(user, ip);
+  await db.prepare(`INSERT INTO reports (post_id, reporter, reason, details, created_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (post_id, reporter) DO UPDATE SET reason = excluded.reason, details = excluded.details`).bind(id, reporter, reason, details, Date.now()).run();
+  const { n } = await db.prepare("SELECT COUNT(*) AS n FROM reports WHERE post_id = ?").bind(id).first();
+  const hidden = n >= LIMITS.reportsToHide;
+  if (hidden) await db.prepare("UPDATE posts SET hidden = 1 WHERE id = ?").bind(id).run();
+  return { ok: true, hidden };
+}
+
+/** Links removed after a takedown request (canonical form). */
+export async function isTakenDown(db, urls) {
+  const keys = [...new Set(urls.map(canonicalUrl).filter(Boolean))];
+  if (!keys.length) return false;
+  const row = await db.prepare(`SELECT 1 FROM takedowns WHERE status = 'removed' AND canonical IN (${keys.map(() => "?").join(",")}) LIMIT 1`).bind(...keys).first();
+  return !!row;
+}
+
+export const TAKEDOWN_KINDS = ["copyright", "trademark", "privacy", "illegal", "other"];
+
+/**
+ * A takedown request (copyright / DMCA-style notice, privacy, illegal content).
+ * The link is removed from MeoDeo straight away: feed posts with it are hidden
+ * and it's left out of search results. The owner reviews requests in the D1
+ * console and can restore a link by setting its status to 'rejected'.
+ */
+export async function requestTakedown(db, { url, name, contact, work, kind, details, sworn } = {}, ip) {
+  const clean = (v, max) => String(v || "").trim().slice(0, max);
+  url = clean(url, 2000); name = clean(name, 200); contact = clean(contact, 300); work = clean(work, 1000); details = clean(details, 3000);
+  const canonical = canonicalUrl(url);
+  if (!canonical || !/^https:\/\//.test(canonical)) throw new FeedError(400, "bad-url", "Give the https:// link of the video (on MeoDeo or on its website).");
+  if (!name || !contact) throw new FeedError(400, "who", "Your name and a way to contact you (email or address) are needed.");
+  if (!work) throw new FeedError(400, "work", "Describe the work or right this is about.");
+  if (!TAKEDOWN_KINDS.includes(kind)) throw new FeedError(400, "kind", "Pick what kind of request this is.");
+  if (sworn !== true) throw new FeedError(400, "sworn", "Please confirm the statement at the end of the form.");
+  await rateLimit(db, await ipKey("takedown", ip), DAY, LIMITS.takedownsPerIpPerDay);
+  const now = Date.now();
+  const row = await db.prepare(`INSERT INTO takedowns (url, canonical, name, contact, work, kind, details, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`).bind(url, canonical, name, contact, work, kind, details, now).first();
+  // Hide feed posts of that video: matched by the posted link or the video's own link,
+  // or by a MeoDeo post link (…/#post-<id>).
+  const postId = Number((url.match(/#post-(\d+)$/) || [])[1]);
+  const { results } = await db.prepare("SELECT id, url, video_json FROM posts WHERE hidden = 0").all();
+  const hide = results.filter((p) => p.id === postId || canonicalUrl(p.url) === canonical
+    || (() => { try { return canonicalUrl(JSON.parse(p.video_json).url) === canonical; } catch { return false; } })());
+  for (const p of hide) await db.prepare("UPDATE posts SET hidden = 1 WHERE id = ?").bind(p.id).run();
+  return { ok: true, id: row.id, hiddenPosts: hide.length };
+}
+
+/** Removed links, for leaving them out of search results. */
+export async function listTakenDown(db) {
+  const { results } = await db.prepare("SELECT DISTINCT canonical FROM takedowns WHERE status = 'removed' ORDER BY id DESC LIMIT 5000").all();
+  return results.map((r) => r.canonical);
 }
