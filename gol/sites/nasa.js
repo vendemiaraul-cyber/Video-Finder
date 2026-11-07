@@ -19,6 +19,7 @@ export default {
         id: d.nasa_id, title: d.title, url: `https://images.nasa.gov/details/${encodeURIComponent(d.nasa_id)}`,
         thumbnail: asset(d.nasa_id, "~medium.jpg"), channel: d.center ? `NASA ${d.center}` : "NASA",
         published: util.date(d.date_created),
+        description: util.text(d.description),
         play: { kind: "video", sources: [
           { src: asset(d.nasa_id, "~medium.mp4"), type: "video/mp4" },
           { src: asset(d.nasa_id, "~orig.mp4"), type: "video/mp4" },

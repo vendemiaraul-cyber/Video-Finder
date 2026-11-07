@@ -14,7 +14,7 @@ export default {
   embedHosts: ["archive.org"],
 
   async search(q, { limit, fetchJSON }) {
-    const fields = ["identifier", "title", "creator", "date", "downloads"].map((f) => "fl[]=" + f).join("&");
+    const fields = ["identifier", "title", "creator", "date", "downloads"].concat("description").map((f) => "fl[]=" + f).join("&");
     const data = await fetchJSON("https://archive.org/advancedsearch.php?" + util.qs({
       q: `(${q}) AND mediatype:(movies) AND NOT collection:(tvnews OR tvarchive)`,
       rows: limit, output: "json", "sort[]": "downloads desc",
@@ -22,7 +22,7 @@ export default {
     return (data.response?.docs || []).map((d) => video(d.identifier, {
       title: util.first(d.title) || d.identifier,
       channel: [].concat(d.creator || []).join(", ") || undefined,
-      views: d.downloads, published: util.date(d.date),
+      views: d.downloads, published: util.date(d.date), description: util.text(d.description),
     }));
   },
 

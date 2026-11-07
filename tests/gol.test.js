@@ -221,3 +221,45 @@ test("SearXNG checks each candidate page separately and shows results as they ar
   assert.deepEqual(r.videos.map((v) => v.domain), ["vimeo.com", "b.example", "a.example"]);
 });
 
+
+import { rank, tierOf, queryWords, offTopicKind } from "../gol/relevance.js";
+
+test("relevance: real 'moon' results split into direct matches and other results", () => {
+  const v = (title, channel = "", description = "") => ({ title, channel, description });
+  const q = "moon";
+  // about the moon
+  assert.equal(tierOf(v("The Universe: The Creation of the Moon (S1, E5) | Full Episode", "HISTORY"), q), "match");
+  assert.equal(tierOf(v("Robots On The Moon", "SolarBalls"), q), "match");
+  assert.equal(tierOf(v("Is There Weather on the Moon", "NASA HQ"), q), "match");
+  assert.equal(tierOf(v("Moon 101 | National Geographic", "National Geographic"), q), "match");
+  assert.equal(tierOf(v("[10 hours] - Timelapse moon phases in 4k - Moon screensaver.", "Solid Screen"), q), "match");
+  assert.equal(tierOf(v("The Entire History Of The Moon", "@ScottManley"), q), "match");
+  assert.equal(tierOf(v("Apollo_11_Introduction_720p", "NASA HQ", "Neil Armstrong and Buzz Aldrin walk on the Moon."), q), "related");
+  // songs, poems, games: other (unless asked for)
+  for (const t of [["Halloween Moon by Alex-Productions", "@calmatimusic"], ["Fragma - Man in the Moon (HD Rip)", "@schypsy"],
+    ["Austin Giorgio - Moon (Official Video)", "Austin Giorgio"], ["The Laurie Berkner Band - Moon Moon Moon", "The Laurie Berkner Band"],
+    ["Moon Moon - Life | PoemHunter.com", "PoemHunter.com"], ["moon moon", "dg nursery"],
+    ["Luigi's Mansion: Dark Moon Playthrough (Direct 3DS Capture) - Mission A-2", "@WatchmeplayNintendo"],
+    ["BABYMONSTER - 'MOON' M/V", "BABYMONSTER"], ["BABYMONSTER《MOON》ASA位教学", "dance"], ["Kanye West - Moon (Audio)", "Kanye West"],
+    ["Moon [Official Video]", ""], ["MOON dance practice", ""]]) {
+    assert.equal(tierOf(v(...t), q), "other", t[0]);
+  }
+  // nothing to do with the moon (a channel called "Moon" doesn't count)
+  assert.equal(tierOf(v("The Fake Gurus Lives Are Now Falling Apart", "Moon"), q), "other");
+  assert.equal(tierOf(v("Sex Madness"), q), "other");
+  assert.equal(tierOf(v("A honeymoon in Paris"), q), "other");
+  // asking for music brings songs back
+  assert.equal(tierOf(v("Moon Song - Austin Giorgio (Official Video)"), "moon song"), "match");
+  assert.equal(offTopicKind(v("Fragma - Man in the Moon (HD Rip)"), "moon music"), null);
+});
+
+test("relevance: order, accents, plurals and long searches", () => {
+  const vids = [{ title: "Moon song (Official Video)" }, { title: "Unrelated" }, { title: "Moons of Jupiter" }, { title: "Luna", description: "the moon" }];
+  const r = rank("moon", vids);
+  assert.deepEqual(r.main.map((x) => x.title), ["Moons of Jupiter", "Luna"]);
+  assert.deepEqual(r.others.map((x) => x.title), ["Moon song (Official Video)", "Unrelated"]);
+  assert.deepEqual(r.counts, { match: 1, related: 1, other: 2 });
+  assert.deepEqual(queryWords("The Café of the Moon"), ["cafe", "moon"]);
+  assert.equal(tierOf({ title: "Le café de la lune" }, "café lune"), "match");
+  assert.equal(tierOf({ title: "Apollo 11 landing footage" }, "apollo 11 moon landing"), "match"); // 3 of 4 words
+});

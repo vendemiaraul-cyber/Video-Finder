@@ -20,6 +20,7 @@ export default {
       thumbnail: it.thumbnailUrl, duration: it.duration,
       channel: it.channel?.displayName || it.account?.displayName, views: it.views,
       published: util.date(it.publishedAt),
+      description: util.text(it.truncatedDescription || it.description),
       play: { kind: "iframe", src: it.embedUrl + "?autoplay=1" },
     }));
   },

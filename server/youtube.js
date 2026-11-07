@@ -43,6 +43,7 @@ export function parseWebResults(data, limit) {
             duration: clock(text(v.lengthText)),
             views: count(text(v.viewCountText)),
             live: !!v.badges?.some((b) => /LIVE/.test(b.metadataBadgeRenderer?.style || "")),
+            description: (text(v.detailedMetadataSnippets?.[0]?.snippetText) || text(v.descriptionSnippet) || "").slice(0, 300) || undefined,
           });
         }
         return;
@@ -62,7 +63,7 @@ export async function searchYouTube(query, { limit = 12, apiKey, fetchImpl = fet
     if (!res.ok) throw new Error(`YouTube Data API answered HTTP ${res.status}`);
     const data = await res.json();
     return (data.items || []).map((it) => ({
-      id: it.id.videoId, title: it.snippet.title, channel: it.snippet.channelTitle,
+      id: it.id.videoId, title: it.snippet.title, channel: it.snippet.channelTitle, description: (it.snippet.description || "").slice(0, 300) || undefined,
       published: (it.snippet.publishedAt || "").slice(0, 10) || undefined,
     }));
   }

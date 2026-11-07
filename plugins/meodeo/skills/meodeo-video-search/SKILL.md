@@ -50,6 +50,10 @@ SearXNG runs on a free server that sleeps after 15 minutes without use. The firs
 - `needsCookies: true` means the site only plays with its own cookies (consent or sign-in). Link to `url` instead of embedding.
 - `duration` is in seconds.
 
+## Relevance
+
+The script lists videos really about the search first, then a section "Other results" with songs, poems, game videos and other topics that merely share a word (for "moon": songs called "Moon", a game named "Dark Moon"). With `--json`, those are in `otherResults`. Offer the main list; mention other results only if the user wants more.
+
 ## Presenting results
 
 For a person, give a short numbered list: title, website (domain), length, channel, and the watch link. For code or a web page, use `play.src` in an iframe with `allow="autoplay; encrypted-media; picture-in-picture; fullscreen"` and `referrerpolicy="strict-origin-when-cross-origin"` (YouTube refuses to play without a referrer). Add `playsinline=1` to YouTube embeds, so phones play them in the page. Don't add `?autoplay` to Odysee embeds: it breaks their player. TikTok embeds (`tiktok.com/player/v1/...`) are vertical; give them a 9:16 frame.

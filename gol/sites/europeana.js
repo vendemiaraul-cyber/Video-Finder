@@ -25,6 +25,7 @@ export default {
         title: titles.find((t) => /[a-z]/i.test(t) && !/:$/.test(t)) || titles[0],
         thumbnail: util.first(it.edmPreview),
         channel: util.first(it.dataProvider), published: util.first(it.year),
+        description: util.text(util.first(it.dcDescription)),
         play: { kind: "link" },
       };
     }).filter(Boolean);

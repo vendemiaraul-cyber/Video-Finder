@@ -136,6 +136,7 @@ export default {
         thumbnail: it.snippet.thumbnails?.high?.url || it.snippet.thumbnails?.default?.url,
         channel: it.snippet.channelTitle,
         published: util.date(it.snippet.publishedAt),
+        description: util.text(it.snippet.description),
         play: play(it.id.videoId),
       }));
     }
@@ -147,7 +148,7 @@ export default {
       if (Array.isArray(data.videos) && data.videos.length) {
         return data.videos.slice(0, limit).map((v) => ({
           id: v.id, title: v.title, url: watchUrl(v.id), thumbnail: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
-          duration: v.duration, channel: v.channel, views: v.views, published: v.published,
+          duration: v.duration, channel: v.channel, views: v.views, published: v.published, description: util.text(v.description),
           play: play(v.id),
         }));
       }
@@ -166,7 +167,7 @@ export default {
               id, title: it.title, url: watchUrl(id),
               thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
               duration: it.duration > 0 ? it.duration : undefined,
-              channel: it.uploaderName, views: it.views >= 0 ? it.views : undefined,
+              channel: it.uploaderName, views: it.views >= 0 ? it.views : undefined, description: util.text(it.shortDescription),
               published: it.uploaded > 0 ? new Date(it.uploaded).toISOString().slice(0, 10) : undefined,
               play: play(id, { vertical: !!it.isShort }),
             };

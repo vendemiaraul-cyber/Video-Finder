@@ -1,4 +1,5 @@
 import { Gol, interleave } from "../gol/gol.js";
+import { rank } from "../gol/relevance.js";
 import sites from "../gol/sites/index.js";
 import { card, player, badge, formatCount, showFallback } from "../gol/render.js";
 
@@ -125,6 +126,7 @@ async function search(query) {
   const id = ++run;
   await humanReady; // verify first (no-op when not needed)
   if (id !== run) return;
+  othersOpen = false;
   // If the SearXNG check is still running (a sleeping server wakes slowly), wait for it,
   // so SearXNG isn't skipped just because the answer hasn't arrived yet.
   if (gol.unavailable.get("searxng") === "checking…") {
@@ -142,15 +144,21 @@ async function search(query) {
     return;
   }
   els.results.replaceChildren(...skeletons(8));
+  $("#others").hidden = true;
   els.status.textContent = `Searching ${ids.length} sources for “${query}”…`;
 
   const perSite = {};
   const playsHere = (v) => v.play.kind !== "link" || !!v.play.inside || (v.needsCookies && settings.cookieMode !== "open");
+  // Direct matches first; videos not really about the search (songs, games,
+  // unrelated titles...) go below, behind "Show other results".
   const draw = () => {
     if (id !== run) return;
     let videos = interleave(ids.map((s) => perSite[s] || []));
     if (settings.playableOnly === "on") videos = videos.filter(playsHere);
-    els.results.replaceChildren(...videos.map((v) => card(v, { gol, onOpen: open })));
+    const { main, others } = rank(query, videos);
+    els.results.replaceChildren(...main.map((v) => card(v, { gol, onOpen: open })));
+    showOthers(query, others);
+    return { main, others };
   };
   let { videos, status } = await gol.search(query, {
     sites: ids, limit: ids.length === 1 ? 40 : 8,
@@ -159,10 +167,11 @@ async function search(query) {
   if (id !== run) return;
   draw();
   if (settings.playableOnly === "on") videos = videos.filter(playsHere);
-  const websites = new Set(videos.map((v) => v.domain)).size;
-  els.status.textContent = videos.length
-    ? `${videos.length} videos from ${websites} websites for “${query}”`
-    : `No videos found for “${query}”.`;
+  const { main, others } = rank(query, videos);
+  const websites = new Set(main.map((v) => v.domain)).size;
+  els.status.textContent = main.length
+    ? `${main.length} videos about “${query}” from ${websites} websites` + (others.length ? ` · ${others.length} other results below` : "")
+    : others.length ? `No videos directly about “${query}”. ${others.length} other results below.` : `No videos found for “${query}”.`;
   els.siteStatus.replaceChildren(...ids.filter((s) => status[s]).map((s) => {
     const st = status[s], site = gol.sites.get(s);
     const li = document.createElement("li");
@@ -171,6 +180,22 @@ async function search(query) {
     return li;
   }));
 }
+
+let othersOpen = false;
+function showOthers(query, list) {
+  const box = $("#others");
+  box.hidden = !list.length;
+  const btn = $("#others-toggle");
+  btn.textContent = `${othersOpen ? "Hide" : "Show"} ${list.length} other result${list.length === 1 ? "" : "s"} (not directly about “${query}”: songs, games, other topics)`;
+  btn.setAttribute("aria-expanded", String(othersOpen));
+  $("#others-list").hidden = !othersOpen;
+  $("#others-list").replaceChildren(...(othersOpen ? list.map((v) => card(v, { gol, onOpen: open })) : []));
+  showOthers.last = [query, list];
+}
+$("#others-toggle").addEventListener("click", () => {
+  othersOpen = !othersOpen;
+  if (showOthers.last) showOthers(...showOthers.last);
+});
 
 function siteError(msg) {
   if (/429/.test(msg)) return "busy, try again in a minute";

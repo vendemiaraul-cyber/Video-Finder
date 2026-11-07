@@ -145,6 +145,7 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
       channel: r.author || undefined,
       published: typeof r.publishedDate === "string" ? r.publishedDate.slice(0, 10) : undefined,
       via: "searxng",
+      description: typeof r.content === "string" && r.content ? r.content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300) : undefined,
       foundBy: [].concat(r.engines || r.engine || []).join(", ") || undefined,
     };
     const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== ""));
@@ -249,7 +250,7 @@ export async function splitResults(results, { gol, skip = new Set(DEFAULT_SKIP),
       continue;
     }
     // keep only what the check needs
-    candidates.push(Object.fromEntries(["url", "title", "thumbnail", "thumbnail_src", "img_src", "length", "author", "publishedDate", "engines", "engine", "category", "template"]
+    candidates.push(Object.fromEntries(["url", "title", "content", "thumbnail", "thumbnail_src", "img_src", "length", "author", "publishedDate", "engines", "engine", "category", "template"]
       .filter((k) => r[k] !== undefined && r[k] !== null && r[k] !== "").map((k) => [k, r[k]])));
   }
   stats.candidates = candidates.length;

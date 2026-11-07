@@ -233,6 +233,11 @@ export const util = {
       .map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v))
       .join("&"),
   date: (s) => (s ? String(s).slice(0, 10) : undefined),
+  /** Plain text, no HTML, at most max characters (for descriptions). */
+  text: (s, max = 300) => {
+    const t = String(Array.isArray(s) ? s.join(" ") : s || "").replace(/<[^>]*>/g, " ").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
+    return t ? t.slice(0, max) : undefined;
+  },
   first: (x) => (Array.isArray(x) ? x[0] : x),
   host: (url) => {
     try {

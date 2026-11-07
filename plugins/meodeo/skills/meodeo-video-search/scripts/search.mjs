@@ -10,6 +10,8 @@
  *
  * MEODEO_URL overrides the site (default https://video-finder.pages.dev).
  */
+import { rank } from "./relevance.js"; // same sorting as the MeoDeo site (copy of gol/relevance.js)
+
 const BASE = (process.env.MEODEO_URL || "https://video-finder.pages.dev").replace(/\/+$/, "");
 
 function parseArgs(argv) {
@@ -86,23 +88,26 @@ async function main() {
     }
   }
 
-  // Put the best matches first: titles containing more of the search words rank higher
-  // (ties keep the round-robin order, so sites stay mixed).
-  const words = [...new Set(o.query.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) || [])];
-  const score = (v) => { const t = (v.title || "").toLowerCase(); return words.filter((w) => t.includes(w)).length; };
-  videos.splice(0, videos.length, ...videos.map((v, i) => [v, i, score(v)]).sort((a, b) => b[2] - a[2] || a[1] - b[1]).map(([v]) => v));
+  // Videos really about the search first; songs, games and other topics after.
+  const { main, others } = rank(o.query, videos);
+  videos.splice(0, videos.length, ...main, ...others);
 
   if (o.json) {
-    console.log(JSON.stringify({ query: o.query, site: BASE, count: videos.length, errors, videos }, null, 2));
+    console.log(JSON.stringify({ query: o.query, site: BASE, count: videos.length, errors, videos: main, otherResults: others }, null, 2));
     return;
   }
-  console.log(`# ${videos.length} videos for "${o.query}" (via ${BASE})\n`);
-  videos.forEach((v, n) => {
+  console.log(`# ${main.length} videos about "${o.query}" (via ${BASE})\n`);
+  const print = (v, n) => {
     const label = v.via === "searxng" ? "SearXNG Results" : v.siteName;
     const meta = [label + (v.domain ? ` (${v.domain})` : ""), fmtTime(v.duration), v.channel, v.ads ? "ads" : "", v.needsCookies ? "needs cookies" : ""]
       .filter(Boolean).join(" · ");
     console.log(`${n + 1}. **${v.title}**\n   ${meta}\n   ${v.url}` + (v.play?.kind === "iframe" ? `\n   embed: ${v.play.src}` : ""));
-  });
+  };
+  main.forEach(print);
+  if (others.length) {
+    console.log(`\n## Other results (not directly about "${o.query}": songs, games, other topics)\n`);
+    others.forEach((v, n) => print(v, main.length + n));
+  }
   for (const [src, msg] of Object.entries(errors)) console.log(`\n(${src} unavailable: ${msg})`);
 }
 
