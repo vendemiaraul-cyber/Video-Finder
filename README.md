@@ -1,6 +1,6 @@
 # MeoDeo
 
-**Search videos across many websites at once. Powered by Gol and Claude.**
+**Search videos across many websites at once. Powered by Gol and SearXNG.**
 
 Type what you want to watch. MeoDeo asks lots of video websites at the same time, shows every result with the website it came from, and plays it right on the page using that website's own player.
 
@@ -17,8 +17,8 @@ Type what you want to watch. MeoDeo asks lots of video websites at the same time
 | NASA Image & Video Library | Search | ✅ browser video player | none |
 | Europeana (hundreds of European archives) | Search | opens on the archive's website | none |
 | Pexels | Search (free key needed) | ✅ browser video player | none |
-| Vimeo, Twitch, TikTok, TED, Streamable, Bilibili, Facebook, Instagram, Loom | Found by Claude on the web | ✅ official players | Twitch and Facebook show their own ads |
-| Any other website | Found by Claude on the web | opens on that website | - |
+| Vimeo, Twitch, TikTok, TED, Streamable, Bilibili, Facebook, Instagram, Loom | Found through SearXNG | ✅ official players | Twitch and Facebook show their own ads |
+| Any other website with a video | Found through SearXNG, checked by the MeoDeo server | its own player if it allows embedding, otherwise opens on the site | - |
 
 **Ads:** MeoDeo never downloads, re-streams or strips videos. Ad-supported sites always play in their own official player, so their ads run normally and creators still get paid. These sites have an **ADS** tag, and the player shows a note when one is playing.
 
@@ -26,11 +26,53 @@ Type what you want to watch. MeoDeo asks lots of video websites at the same time
 
 [Gol](gol/README.md) is MeoDeo's own library for video websites. Each website is one small definition file that tells Gol how to search the site and how to play its videos. Gol then searches every site in parallel, recognises video links from any site it knows, and renders cards and players safely.
 
-## Powered by Claude
+## Powered by SearXNG
 
-Turn on **✦ Ask Claude too** and Claude searches the whole web for matching videos. It can find videos on sites Gol can't search directly, such as Vimeo, TED or news websites, and it says why it picked each one. Gol then plays every link it recognises.
+[SearXNG](https://docs.searxng.org/) is a metasearch engine that asks dozens of search engines at once. MeoDeo uses its JSON API through the **MeoDeo server** (`server/`), a small Node.js server with no dependencies:
 
-Claude needs your own Anthropic API key (⚙ Settings). The key is kept only in your browser and is sent only to `api.anthropic.com`; each Claude search is billed to your Anthropic account. MeoDeo uses Claude Opus 5.5 by default, with Sonnet 5.5 and Haiku 5.5 as faster, cheaper choices. On Opus and Sonnet, if Claude declines a request, Anthropic's server automatically retries it on a fallback model (`fallbacks: "default"`).
+1. It asks SearXNG for videos (`categories=videos`, 2 result pages).
+2. Links to sites Gol knows play in that site's official player.
+3. Every other link is opened by the server, which keeps only pages that really offer a video:
+   - an article that embeds a YouTube/Vimeo/... player plays that player
+   - a page with its own player (`og:video`, `twitter:player`, JSON-LD `VideoObject`) plays it, if the player allows embedding
+   - a page with a plain mp4/webm file plays in the browser's player
+   - a page with no video at all is dropped
+4. Pages behind a cookie wall, consent page or sign-in are marked **🍪 cookies**.
+
+**Cookies setting (⚙ Settings → 🍪 Cookies, on by default):** a video that needs its site's own cookies can't work inside MeoDeo, so it opens straight on its own website in a new tab, where your cookies and sign-in work. Turn it off to see MeoDeo's "watch on site" panel instead.
+
+### Run it
+
+You need your own SearXNG with the JSON API on. In SearXNG's `settings.yml`:
+
+```yaml
+search:
+  formats:
+    - html
+    - json        # MeoDeo needs this
+server:
+  limiter: false  # your own instance: don't rate-limit MeoDeo
+```
+
+Then start MeoDeo (Node 18+, nothing to install):
+
+```bash
+SEARXNG_URL=http://127.0.0.1:8888 npm start
+# open http://127.0.0.1:8787
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SEARXNG_URL` | `http://127.0.0.1:8888` | your SearXNG |
+| `PORT` / `HOST` | `8787` / `127.0.0.1` | where MeoDeo listens |
+| `SEARXNG_PAGES` | `2` | SearXNG result pages per search (1-5) |
+| `SEARXNG_CATEGORIES` | `videos` | e.g. `videos,general` to check more pages |
+| `PROBE_LIMIT` | `16` | max unknown pages checked per search |
+| `ALLOW_ORIGIN` | `*` | CORS, so the GitHub Pages copy can use your server |
+
+The server only opens public web pages: it refuses private and local network addresses, caps time and size, and serves only the app's own files.
+
+On GitHub Pages (no server), MeoDeo still searches the other websites directly. To add SearXNG there, run the MeoDeo server and put its address in ⚙ Settings → SearXNG.
 
 ## Publish on GitHub Pages
 
@@ -44,8 +86,8 @@ MeoDeo is plain HTML, CSS and JavaScript with no build step.
 ## Run it locally
 
 ```bash
-python3 -m http.server 8000     # or: npm start
-# open http://localhost:8000
+npm start                       # MeoDeo server with SearXNG: http://localhost:8787
+npm run static                  # website only, without SearXNG: http://localhost:8000
 ```
 
 Opening `index.html` directly as a file won't work, because browsers block ES modules on `file://`.

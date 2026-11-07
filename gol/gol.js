@@ -28,18 +28,20 @@
  * @property {string} [channel]
  * @property {number} [views]
  * @property {string} [published] YYYY-MM-DD
- * @property {string} [via]       who found it, e.g. "claude"
- * @property {string} [note]      short note, e.g. why Claude picked it
+ * @property {string} [via]       which search found it, e.g. "searxng"
+ * @property {boolean} [needsCookies] the site only works with its own cookies: open it there
+ * @property {string} [note]      short note, e.g. "YouTube video on bbc.com"
  */
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 
 export class Gol {
   constructor({ fetch: fetchImpl, deadlineMs = 12000, keys = {} } = {}) {
     this.sites = new Map();
     this.fetch = fetchImpl || globalThis.fetch.bind(globalThis);
     this.deadlineMs = deadlineMs;
-    this.keys = keys; // API keys some sites need, e.g. { youtubeKey: "..." }
+    this.keys = keys; // API keys / settings some sites need, e.g. { youtubeKey: "..." }
+    this.unavailable = new Map(); // site id -> reason it can't be searched right now
   }
 
   /** Add one site definition (or an array of them). */
@@ -53,7 +55,7 @@ export class Gol {
 
   /** Sites that can be searched right now (have their keys, if they need any). */
   searchableSites() {
-    return [...this.sites.values()].filter((s) => s.search && this.hasKeys(s));
+    return [...this.sites.values()].filter((s) => s.search && this.hasKeys(s) && !this.unavailable.has(s.id));
   }
 
   hasKeys(site) {
@@ -82,7 +84,7 @@ export class Gol {
     query = String(query || "").trim();
     if (!query) throw new Error("empty query");
     const chosen = (sites ? sites.map((id) => this.sites.get(id)) : this.searchableSites())
-      .filter((s) => s && s.search && this.hasKeys(s));
+      .filter((s) => s && s.search && this.hasKeys(s) && !this.unavailable.has(s.id));
 
     const status = {};
     const perSite = {};
@@ -92,7 +94,7 @@ export class Gol {
         const timer = setTimeout(() => ctrl.abort(new Error("timed out")), this.deadlineMs);
         try {
           const raw = await site.search(query, { ...this.context(ctrl.signal), limit });
-          const videos = raw.map((v) => this.normalize(site, v)).filter(Boolean).slice(0, limit);
+          const videos = raw.map((v) => this.normalize(site, v)).filter(Boolean).slice(0, site.limit || limit);
           perSite[site.id] = videos;
           status[site.id] = { ok: true, count: videos.length };
           onPartial?.(site.id, videos, null);
@@ -131,20 +133,24 @@ export class Gol {
     }
     if (u.protocol !== "https:") return null;
     const host = u.hostname.replace(/^www\./, "");
-    return {
-      id: u.href, site: "web", siteName: extra.siteName || host, domain: host,
-      ads: false, title: extra.title || u.href, url: u.href, play: { kind: "link" }, ...extra,
-    };
+    const web = { id: u.href, site: "web", siteName: host, domain: host, ads: false,
+                  title: u.href, url: u.href, play: { kind: "link" }, ...extra };
+    return this.sites.has("web") ? this.normalize(this.sites.get("web"), web) : web;
   }
 
   /** Fill site fields, and drop anything Gol cannot render safely. */
   normalize(site, v) {
     if (!v || !v.id || !v.url || !v.play) return null;
+    // A search source (e.g. SearXNG) can return videos from other sites:
+    // check each one against its own site definition.
+    if (v.site && v.site !== site.id) site = this.sites.get(v.site) || null;
+    if (!site) return null;
     const video = {
       site: site.id,
       siteName: site.name,
       domain: site.domain,
       ads: !!site.ads,
+      needsCookies: !!site.needsCookies,
       title: "(untitled)",
       ...v,
     };
@@ -203,7 +209,7 @@ function validateSite(def) {
   for (const field of ["id", "name", "domain"]) {
     if (!def[field]) throw new Error(`Gol site is missing "${field}"`);
   }
-  if (!def.search && !(def.match && def.match.length)) {
+  if (!def.search && !(def.match && def.match.length) && !def.generic) {
     throw new Error(`Gol site "${def.id}" needs search() or match rules`);
   }
 }

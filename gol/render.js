@@ -51,7 +51,7 @@ export function card(video, { gol, onOpen } = {}) {
                       onerror: (e) => e.target.remove() })
         : el("span", { class: "gol-thumb-fallback", text: video.siteName }),
       video.duration ? el("span", { class: "gol-duration", text: formatDuration(video.duration) }) : null,
-      video.play.kind === "link" ? el("span", { class: "gol-linkout", text: "Opens on site ↗" }) : null,
+      video.play.kind === "link" ? el("span", { class: "gol-linkout", text: video.needsCookies ? "Needs cookies · opens on site ↗" : "Opens on site ↗" }) : null,
     ),
     el("div", { class: "gol-body" },
       el("h3", { class: "gol-title", title: video.title, text: video.title }),
@@ -62,7 +62,8 @@ export function card(video, { gol, onOpen } = {}) {
         el("a", { class: "gol-domain", href: video.url, target: "_blank", rel: "noopener noreferrer",
                   text: video.domain, onclick: (e) => e.stopPropagation() }),
         video.ads ? el("span", { class: "gol-ads", title: "This site shows its own ads in its player", text: "ads" }) : null,
-        video.via === "claude" ? el("span", { class: "gol-via", title: "Found by Claude", text: "✦ Claude" }) : null,
+        video.needsCookies ? el("span", { class: "gol-cookies", title: "This site needs its own cookies, so it opens on the site", text: "🍪 cookies" }) : null,
+        video.via === "searxng" ? el("span", { class: "gol-via", title: "Found through SearXNG" + (video.foundBy ? ` (${video.foundBy})` : ""), text: "SearXNG" }) : null,
       ),
     ),
   );
@@ -73,16 +74,19 @@ export function card(video, { gol, onOpen } = {}) {
  * Mount a player for `video` into `container` (replacing its contents).
  * Returns a function that stops playback.
  */
-export function player(video, container) {
+export function player(video, container, { gol } = {}) {
   container.replaceChildren();
   const { play } = video;
   if (play.kind === "iframe") {
     const src = play.src.replace("{parent}", encodeURIComponent(location.hostname || "localhost"));
+    const sandboxed = gol?.sites.get(video.site)?.sandboxed;
     container.append(el("iframe", {
       src, title: video.title, allowfullscreen: true,
       allow: "autoplay; encrypted-media; picture-in-picture; fullscreen; clipboard-write",
       // Some players (YouTube) refuse to play without a referrer.
       referrerpolicy: "strict-origin-when-cross-origin",
+      // Players from websites Gol has no definition for can't navigate MeoDeo away.
+      sandbox: sandboxed ? "allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox" : null,
     }));
   } else if (play.kind === "video") {
     const v = el("video", { controls: true, autoplay: true, playsinline: true, preload: "metadata",
@@ -92,30 +96,12 @@ export function player(video, container) {
   } else {
     container.append(el("div", { class: "gol-linkpanel" },
       video.thumbnail ? el("img", { src: video.thumbnail, alt: "", referrerpolicy: "no-referrer" }) : null,
-      el("p", { text: `${video.domain} doesn't allow its videos to be played on other websites.` }),
+      el("p", { text: video.needsCookies
+        ? `${video.domain} needs its own cookies (consent or sign-in), so this video only plays on the site itself.`
+        : `${video.domain} doesn't allow its videos to be played on other websites.` }),
       el("a", { class: "gol-button", href: video.url, target: "_blank", rel: "noopener noreferrer",
                 text: `Watch on ${video.domain} ↗` }),
     ));
   }
   return () => container.replaceChildren();
-}
-
-/**
- * Fill in a missing title/thumbnail through oEmbed (noembed.com proxies
- * oEmbed for hundreds of sites and allows browser requests).
- */
-export async function enrich(video, fetchImpl = fetch) {
-  if (video.thumbnail && video.title && video.title !== video.url) return video;
-  try {
-    const res = await fetchImpl("https://noembed.com/embed?url=" + encodeURIComponent(video.url));
-    const d = await res.json();
-    if (d.error) return video;
-    const out = { ...video };
-    if (!out.thumbnail && /^https:/.test(d.thumbnail_url || "")) out.thumbnail = d.thumbnail_url;
-    if ((!out.title || out.title === out.url) && d.title) out.title = d.title;
-    if (!out.channel && d.author_name) out.channel = d.author_name;
-    return out;
-  } catch {
-    return video;
-  }
 }

@@ -10,5 +10,7 @@ import odysee from "./odysee.js";
 import europeana from "./europeana.js";
 import pexels from "./pexels.js";
 import embeds from "./embeds.js";
+import searxng from "./searxng.js";
+import web from "./web.js";
 
-export default [youtube, dailymotion, peertube, odysee, archive, commons, nasa, europeana, pexels, ...embeds];
+export default [searxng, youtube, dailymotion, peertube, odysee, archive, commons, nasa, europeana, pexels, ...embeds, web];

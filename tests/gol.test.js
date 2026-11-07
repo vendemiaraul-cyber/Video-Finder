@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Gol, interleave, isSafePlay } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
-import { buildVideos, findWithClaude, urlKey } from "../claude/finder.js";
 
 const jsonFetch = (routes) => async (url) => {
   const hit = Object.entries(routes).find(([k]) => String(url).includes(k));
@@ -14,7 +13,7 @@ const gol = (routes = {}, keys = {}) => new Gol({ fetch: jsonFetch(routes), keys
 test("every site definition is valid and ids are unique", () => {
   const g = gol();
   assert.equal(g.sites.size, sites.length);
-  for (const s of sites) assert.ok(s.search || s.match, s.id);
+  for (const s of sites) assert.ok(s.search || s.match || s.generic, s.id);
 });
 
 test("sites that need keys are not searchable without them", () => {
@@ -119,6 +118,7 @@ test("fromUrl recognises many sites and builds official embeds", () => {
     "https://tilvids.com/w/9c9de5e8-0a1e-484a-b099-e80766180a6d": ["peertube", "https://tilvids.com/videos/embed/9c9de5e8-0a1e-484a-b099-e80766180a6d?autoplay=1"],
     "https://commons.wikimedia.org/wiki/File:Cat_lapping.webm": ["commons", null],
     "https://www.nytimes.com/video/world/123.html": ["web", null],
+    "https://www.facebook.com/watch/?v=123456": ["facebook", null],
   };
   for (const [url, [site, src]] of Object.entries(cases)) {
     const v = g.fromUrl(url);
@@ -136,41 +136,30 @@ test("isSafePlay only allows listed embed hosts", () => {
   assert.ok(!isSafePlay(yt, { kind: "video", sources: [{ src: "http://x/a.mp4" }] }));
 });
 
-test("Claude results keep only URLs that web search returned", () => {
+test("Facebook and Instagram are marked as needing cookies", () => {
   const g = gol();
-  const seen = new Set([urlKey("https://vimeo.com/76979871"), urlKey("https://www.nytimes.com/video/123")]);
-  const out = buildVideos([
-    { url: "https://vimeo.com/76979871/", title: "V", site: "Vimeo", channel: "", why: "fits" },
-    { url: "https://www.youtube.com/watch?v=madeupid123", title: "Hallucinated", site: "YouTube", channel: "", why: "" },
-    { url: "https://nytimes.com/video/123", title: "News", site: "The New York Times", channel: "NYT", why: "news" },
-  ], { gol: g, seen, count: 10 });
-  assert.deepEqual(out.map((v) => [v.site, v.siteName]), [["vimeo", "Vimeo"], ["web", "The New York Times"]]);
-  assert.equal(out[0].via, "claude");
-  assert.equal(out[0].note, "fits");
+  assert.equal(g.fromUrl("https://www.facebook.com/watch/?v=123456").needsCookies, true);
+  assert.equal(g.fromUrl("https://www.instagram.com/reel/Cabc123/").needsCookies, true);
+  assert.equal(g.fromUrl("https://vimeo.com/76979871").needsCookies, false);
 });
 
-test("findWithClaude drives web search, resumes pause_turn, and reads show_videos", async () => {
-  const calls = [];
-  const replies = [
-    { stop_reason: "pause_turn", content: [
-      { type: "server_tool_use", name: "web_search", id: "s1", input: {} },
-      { type: "web_search_tool_result", tool_use_id: "s1", content: [{ type: "web_search_result", url: "https://vimeo.com/76979871" }] }] },
-    { stop_reason: "tool_use", content: [{ type: "tool_use", name: "show_videos", id: "t1",
-      input: { videos: [{ url: "https://vimeo.com/76979871", title: "V", site: "Vimeo", channel: "", why: "w" }] } }] },
-  ];
-  const client = { beta: { messages: { create: async (p) => { calls.push(structuredClone(p)); return replies.shift(); } } } };
-  const vids = await findWithClaude("cats", { apiKey: "k", gol: gol(), createClient: async () => client });
-  assert.equal(vids.length, 1);
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0].model, "claude-opus-5-5");
-  assert.equal(calls[0].fallbacks, "default");
-  assert.equal(calls[0].tools[0].type, "web_search_20260209");
-  assert.equal(calls[1].messages.length, 2); // assistant turn echoed back, no extra "continue" message
-  assert.equal(calls[1].messages[1].role, "assistant");
+test("SearXNG results keep their own site and are checked against it", async () => {
+  const g = gol({ "/api/search?q=": { videos: [
+    { id: "dQw4w9WgXcQ", site: "youtube", title: "Y", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", via: "searxng",
+      play: { kind: "iframe", src: "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0" } },
+    { id: "https://news.example/v/1", site: "web", siteName: "news.example", domain: "news.example", title: "N", url: "https://news.example/v/1",
+      play: { kind: "iframe", src: "https://player.news.example/embed/1" } },
+    { id: "evil", site: "youtube", title: "E", url: "https://www.youtube.com/watch?v=evil", play: { kind: "iframe", src: "https://evil.example/x" } },
+    { id: "x", site: "unknown-site", title: "U", url: "https://u.example", play: { kind: "link" } },
+  ] } });
+  const r = await g.search("x", { sites: ["searxng"] });
+  assert.deepEqual(r.videos.map((v) => [v.site, v.siteName, v.ads]), [["youtube", "YouTube", true], ["web", "news.example", false]]);
 });
 
-test("findWithClaude needs a key and surfaces refusals", async () => {
-  await assert.rejects(findWithClaude("x", { gol: gol() }), /API key/);
-  const client = { beta: { messages: { create: async () => ({ stop_reason: "refusal", content: [], stop_details: { explanation: "nope" } }) } } };
-  await assert.rejects(findWithClaude("x", { apiKey: "k", gol: gol(), model: "claude-haiku-5-5", createClient: async () => client }), /declined.*nope/);
+test("sites marked unavailable are skipped", async () => {
+  const g = gol();
+  g.unavailable.set("searxng", "no server");
+  assert.ok(!g.searchableSites().some((s) => s.id === "searxng"));
+  const r = await g.search("x", { sites: ["searxng"] });
+  assert.deepEqual(r.status, {});
 });

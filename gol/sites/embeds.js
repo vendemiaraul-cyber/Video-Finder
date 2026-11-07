@@ -1,6 +1,6 @@
 // Sites Gol can't search directly from a browser (no open search API), but
 // can recognise and play when a link to them turns up - for example when
-// Claude finds one on the web. Each uses the site's official embed player.
+// SearXNG finds one on the web. Each uses the site's official embed player.
 
 const iframe = (src) => ({ kind: "iframe", src });
 
@@ -50,14 +50,14 @@ export default [
       video: (m) => ({ id: m[1], play: iframe(`https://player.bilibili.com/player.html?bvid=${m[1]}&autoplay=0`) }) }],
   },
   {
-    id: "facebook", name: "Facebook", domain: "facebook.com", color: "#1877f2", ads: true,
+    id: "facebook", name: "Facebook", domain: "facebook.com", color: "#1877f2", ads: true, needsCookies: true,
     embedHosts: ["www.facebook.com"],
     match: [{ re: /^https?:\/\/(?:www\.|m\.)?facebook\.com\/(?:[^/]+\/videos\/(?:[^/]+\/)?(\d+)|watch\/?\?v=(\d+)|reel\/(\d+))/,
       video: (m, u) => ({ id: m[1] || m[2] || m[3],
         play: iframe(`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(u.href)}&show_text=false`) }) }],
   },
   {
-    id: "instagram", name: "Instagram", domain: "instagram.com", color: "#d62976", ads: false,
+    id: "instagram", name: "Instagram", domain: "instagram.com", color: "#d62976", ads: false, needsCookies: true,
     embedHosts: ["www.instagram.com"],
     match: [{ re: /^https?:\/\/(?:www\.)?instagram\.com\/(?:[^/]+\/)?(reel|p|tv)\/([A-Za-z0-9_-]+)/,
       video: (m) => ({ id: m[2], url: `https://www.instagram.com/${m[1]}/${m[2]}/`,

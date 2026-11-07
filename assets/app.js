@@ -1,11 +1,11 @@
 import { Gol, interleave } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
-import { card, player, badge, enrich, formatCount } from "../gol/render.js";
-import { findWithClaude, MODELS, DEFAULT_MODEL } from "../claude/finder.js";
+import { card, player, badge, formatCount } from "../gol/render.js";
 
 const $ = (s) => document.querySelector(s);
-const STORE = "meodeo.settings.v1";
+const STORE = "meodeo.settings.v2";
 const PREFS = "meodeo.sites.v1";
+const DEFAULTS = { autoOpenCookies: "on" };
 
 // Settings live only in this browser. Storage can be unavailable (private
 // mode, blocked site data), so every access is guarded.
@@ -18,27 +18,45 @@ const store = {
   },
 };
 
-let settings = store.get(STORE, {});
+let settings = { ...DEFAULTS, ...store.get(STORE, {}) };
 const gol = new Gol({ keys: settings }).register(sites);
 
 const els = {
-  form: $("#search-form"), q: $("#q"), useClaude: $("#use-claude"), filters: $("#site-filters"),
+  form: $("#search-form"), q: $("#q"), filters: $("#site-filters"),
   status: $("#status"), siteStatus: $("#site-status"), results: $("#results"),
-  claudeSection: $("#claude-section"), claudeStatus: $("#claude-status"), claudeResults: $("#claude-results"),
   player: $("#player"), frame: $("#player-frame"), settings: $("#settings"), settingsForm: $("#settings-form"),
 };
+
+/* ---------- MeoDeo server (SearXNG) ---------- */
+
+const serverBase = () => (settings.serverUrl || "").replace(/\/+$/, "");
+
+async function checkServer() {
+  gol.unavailable.set("searxng", "checking…");
+  try {
+    const res = await fetch(serverBase() + "/api/health", { signal: AbortSignal.timeout(4000) });
+    const data = res.ok ? await res.json() : null;
+    if (data?.app !== "meodeo") throw new Error("no MeoDeo server");
+    if (!data.searxng) gol.unavailable.set("searxng", `server can't reach SearXNG at ${data.searxngUrl}`);
+    else gol.unavailable.delete("searxng");
+  } catch {
+    gol.unavailable.set("searxng", "needs the MeoDeo server (Settings)");
+  }
+  renderFilters();
+}
 
 /* ---------- site filter chips ---------- */
 
 function renderFilters() {
   const off = new Set(store.get(PREFS, []));
   els.filters.replaceChildren(...[...gol.sites.values()].filter((s) => s.search).map((site) => {
-    const ready = gol.hasKeys(site);
+    const missingKey = !gol.hasKeys(site);
+    const why = gol.unavailable.get(site.id) || (missingKey ? `Add a ${site.name} API key in Settings to search it` : "");
     const label = document.createElement("label");
-    label.className = "chip" + (ready ? "" : " chip-off");
-    label.title = ready ? `Search ${site.domain}` : `Add a ${site.name} API key in Settings to search it`;
+    label.className = "chip" + (why ? " chip-off" : "");
+    label.title = why || `Search ${site.id === "searxng" ? "the web through SearXNG" : site.domain}`;
     const cb = Object.assign(document.createElement("input"), { type: "checkbox", value: site.id,
-      checked: ready && !off.has(site.id), disabled: !ready });
+      checked: !why && !off.has(site.id), disabled: !!why });
     cb.addEventListener("change", () => {
       const now = new Set(store.get(PREFS, []));
       cb.checked ? now.delete(site.id) : now.add(site.id);
@@ -47,10 +65,10 @@ function renderFilters() {
     });
     const dot = Object.assign(document.createElement("i"), { className: "dot" });
     dot.style.background = site.color;
-    const name = Object.assign(document.createElement("span"), { textContent: site.name });
-    label.append(cb, dot, name);
+    label.append(cb, dot, Object.assign(document.createElement("span"), { textContent: site.name }));
     if (site.ads) label.append(Object.assign(document.createElement("small"), { textContent: "ads", title: "Plays with the site's own ads" }));
-    if (!ready) label.append(Object.assign(document.createElement("small"), { className: "key", textContent: "key" }));
+    if (missingKey) label.append(Object.assign(document.createElement("small"), { className: "key", textContent: "key" }));
+    else if (why) label.append(Object.assign(document.createElement("small"), { className: "key", textContent: "server" }));
     return label;
   }));
 }
@@ -60,40 +78,38 @@ const chosenSites = () => [...els.filters.querySelectorAll("input:checked")].map
 /* ---------- search ---------- */
 
 let run = 0;
-let claudeAbort = null;
 
 async function search(query) {
   const id = ++run;
-  claudeAbort?.abort();
   history.replaceState(null, "", "?q=" + encodeURIComponent(query));
   document.title = `${query} · MeoDeo`;
   const ids = chosenSites();
-  const wantClaude = els.useClaude.checked;
-  els.results.replaceChildren(...skeletons(8));
   els.siteStatus.replaceChildren();
-  els.status.textContent = ids.length ? `Searching ${ids.length} websites for “${query}”…` : "";
-  if (!ids.length && !wantClaude) { els.results.replaceChildren(); els.status.textContent = "Pick at least one website, or turn on Claude."; }
-
-  if (wantClaude) searchClaude(query, id); else els.claudeSection.hidden = true;
-  if (!ids.length) return;
+  if (!ids.length) {
+    els.results.replaceChildren();
+    els.status.textContent = "Pick at least one website.";
+    return;
+  }
+  els.results.replaceChildren(...skeletons(8));
+  els.status.textContent = `Searching ${ids.length} sources for “${query}”…`;
 
   const perSite = {};
   const draw = () => {
     if (id !== run) return;
     const videos = interleave(ids.map((s) => perSite[s] || []));
-    els.results.replaceChildren(...videos.map((v) => card(v, { gol, onOpen: openPlayer })));
+    els.results.replaceChildren(...videos.map((v) => card(v, { gol, onOpen: open })));
   };
   const { videos, status } = await gol.search(query, {
-    sites: ids, limit: 8,
+    sites: ids, limit: ids.length === 1 ? 40 : 8,
     onPartial: (siteId, list) => { if (list) { perSite[siteId] = list; draw(); } },
   });
   if (id !== run) return;
   draw();
-  const okSites = Object.values(status).filter((s) => s.ok && s.count).length;
+  const websites = new Set(videos.map((v) => v.domain)).size;
   els.status.textContent = videos.length
-    ? `${videos.length} videos from ${okSites} websites for “${query}”`
-    : `No videos found for “${query}” on the selected websites.`;
-  els.siteStatus.replaceChildren(...ids.map((s) => {
+    ? `${videos.length} videos from ${websites} websites for “${query}”`
+    : `No videos found for “${query}”.`;
+  els.siteStatus.replaceChildren(...ids.filter((s) => status[s]).map((s) => {
     const st = status[s], site = gol.sites.get(s);
     const li = document.createElement("li");
     li.textContent = st.ok ? `${site.name}: ${st.count}` : `${site.name}: unavailable (${siteError(st.error)})`;
@@ -102,60 +118,31 @@ async function search(query) {
   }));
 }
 
-async function searchClaude(query, id) {
-  els.claudeSection.hidden = false;
-  els.claudeResults.replaceChildren(...skeletons(4));
-  if (!settings.anthropicKey) {
-    els.claudeResults.replaceChildren();
-    els.claudeStatus.textContent = "Add your Anthropic API key in Settings (⚙) to let Claude search the whole web.";
-    return;
-  }
-  claudeAbort = new AbortController();
-  try {
-    const videos = await findWithClaude(query, {
-      apiKey: settings.anthropicKey, model: settings.claudeModel || DEFAULT_MODEL, gol, count: 10,
-      signal: claudeAbort.signal,
-      onStatus: (m) => { if (id === run) els.claudeStatus.textContent = m; },
-    });
-    if (id !== run) return;
-    const enriched = await Promise.all(videos.map((v) => enrich(v)));
-    if (id !== run) return;
-    const sitesUsed = new Set(enriched.map((v) => v.domain)).size;
-    els.claudeStatus.textContent = enriched.length
-      ? `${enriched.length} videos from ${sitesUsed} websites`
-      : "Claude didn't find matching videos.";
-    els.claudeResults.replaceChildren(...enriched.map((v) => card(v, { gol, onOpen: openPlayer })));
-  } catch (err) {
-    if (id !== run || err.name === "AbortError") return;
-    els.claudeResults.replaceChildren();
-    els.claudeStatus.textContent = "Claude search failed: " + friendlyError(err);
-  }
-}
-
 function siteError(msg) {
   if (/429/.test(msg)) return "busy, try again in a minute";
   if (/HTTP 40[13]/.test(msg)) return "key rejected, check Settings";
   return msg;
 }
 
-function friendlyError(err) {
-  const s = err?.status;
-  if (s === 401) return "the Anthropic API key was rejected. Check it in Settings.";
-  if (s === 429) return "rate limited. Wait a moment and try again.";
-  if (s === 529 || s >= 500) return "Claude is busy right now. Try again shortly.";
-  return err?.message || String(err);
-}
-
 function skeletons(n) {
   return Array.from({ length: n }, () => Object.assign(document.createElement("div"), { className: "gol-card skeleton" }));
 }
 
-/* ---------- player ---------- */
+/* ---------- opening a video ---------- */
+
+function open(video) {
+  // Sites that need their own cookies can't work inside MeoDeo: open them there.
+  if (video.needsCookies && settings.autoOpenCookies === "on") {
+    window.open(video.url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  openPlayer(video);
+}
 
 function openPlayer(video) {
   $("#player-title").textContent = video.title;
   $("#player-badge").replaceChildren(badge(video, gol));
-  $("#player-meta").textContent = [video.channel, video.published, video.views != null ? formatCount(video.views) + " views" : null]
+  $("#player-meta").textContent = [video.channel, video.published, video.views != null ? formatCount(video.views) + " views" : null, video.note]
     .filter(Boolean).join(" · ");
   const ads = $("#player-ads");
   ads.hidden = !video.ads;
@@ -163,7 +150,7 @@ function openPlayer(video) {
   const link = $("#player-link");
   link.href = video.url;
   link.textContent = `Watch on ${video.domain} ↗`;
-  player(video, els.frame);
+  player(video, els.frame, { gol });
   els.player.showModal();
 }
 
@@ -175,21 +162,21 @@ els.player.addEventListener("click", (e) => { if (e.target === els.player) els.p
 
 function fillSettings() {
   const f = els.settingsForm;
-  f.anthropicKey.value = settings.anthropicKey || "";
-  f.claudeModel.replaceChildren(...MODELS.map((m) => new Option(m.label, m.id, false, m.id === (settings.claudeModel || DEFAULT_MODEL))));
+  f.serverUrl.value = settings.serverUrl || "";
+  f.autoOpenCookies.checked = settings.autoOpenCookies === "on";
+  const why = gol.unavailable.get("searxng");
+  $("#server-state").textContent = why
+    ? `SearXNG: ${why}. Run the MeoDeo server (npm start) and leave this empty when you open MeoDeo from it.`
+    : "SearXNG: connected ✓";
   const box = $("#site-keys");
-  box.querySelectorAll("label, p").forEach((n) => n.remove());
+  box.querySelectorAll("label").forEach((n) => n.remove());
   for (const site of gol.sites.values()) {
     for (const k of site.keys || []) {
       const label = document.createElement("label");
       label.textContent = k.label;
-      const input = Object.assign(document.createElement("input"), { type: "password", name: k.name, autocomplete: "off",
-        value: settings[k.name] || "", placeholder: k.optional ? "optional" : "needed to search " + site.name });
-      label.append(input);
-      if (k.help) {
-        const a = Object.assign(document.createElement("a"), { href: k.help, target: "_blank", rel: "noopener", textContent: " get one" });
-        label.append(a);
-      }
+      label.append(Object.assign(document.createElement("input"), { type: "password", name: k.name, autocomplete: "off",
+        value: settings[k.name] || "", placeholder: k.optional ? "optional" : "needed to search " + site.name }));
+      if (k.help) label.append(Object.assign(document.createElement("a"), { href: k.help, target: "_blank", rel: "noopener", textContent: " get one" }));
       box.append(label);
     }
   }
@@ -197,18 +184,23 @@ function fillSettings() {
 
 $("#open-settings").addEventListener("click", () => { fillSettings(); els.settings.showModal(); });
 $("#clear-keys").addEventListener("click", () => {
-  settings = {};
+  settings = { ...DEFAULTS, serverUrl: settings.serverUrl, autoOpenCookies: settings.autoOpenCookies };
   store.set(STORE, settings);
+  gol.keys = settings;
   fillSettings();
+  renderFilters();
 });
 els.settings.addEventListener("close", () => {
   if (els.settings.returnValue !== "save") return;
   const data = Object.fromEntries(new FormData(els.settingsForm));
-  settings = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v).trim()]).filter(([, v]) => v));
+  const next = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v).trim()]).filter(([, v]) => v));
+  next.autoOpenCookies = data.autoOpenCookies ? "on" : "off";
+  const serverChanged = (next.serverUrl || "") !== (settings.serverUrl || "");
+  settings = next;
   store.set(STORE, settings);
   gol.keys = settings;
-  els.useClaude.checked = !!settings.anthropicKey;
   renderFilters();
+  if (serverChanged) checkServer();
 });
 
 /* ---------- boot ---------- */
@@ -218,10 +210,10 @@ els.form.addEventListener("submit", (e) => {
   const q = els.q.value.trim();
   if (q) search(q);
 });
-els.useClaude.checked = !!settings.anthropicKey;
 renderFilters();
-const searchableCount = [...gol.sites.values()].filter((s) => s.search).length;
-const playableCount = gol.sites.size;
-els.status.textContent = `Search ${searchableCount} video websites at once, and play videos from ${playableCount}+ sites. Turn on Claude to search the whole web.`;
+const directCount = [...gol.sites.values()].filter((s) => s.search && !s.needsServer).length;
+els.status.textContent = `Search ${directCount} video websites at once, plus the whole web through SearXNG.`;
 const initial = new URLSearchParams(location.search).get("q");
-if (initial) { els.q.value = initial; search(initial); }
+checkServer().then(() => {
+  if (initial) { els.q.value = initial; search(initial); }
+});

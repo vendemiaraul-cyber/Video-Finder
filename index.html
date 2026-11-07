@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MeoDeo</title>
-  <meta name="description" content="Search videos across many websites at once. Powered by Gol and Claude.">
+  <meta name="description" content="Search videos across many websites at once. Powered by Gol and SearXNG.">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/style.css">
 </head>
@@ -15,20 +15,12 @@
       <input id="q" name="q" type="search" placeholder="Search videos on every site…" maxlength="300" autocomplete="off" autofocus>
       <button type="submit">Search</button>
     </form>
-    <label class="claude-toggle" title="Claude searches the whole web for more videos">
-      <input id="use-claude" type="checkbox"> <span>✦ Ask Claude too</span>
-    </label>
     <button id="open-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings">⚙</button>
     <div id="site-filters" class="filters" aria-label="Websites to search"></div>
   </header>
 
   <main>
     <p id="status" class="status" aria-live="polite"></p>
-    <section id="claude-section" class="claude-section" hidden>
-      <h2>✦ Claude found on the web</h2>
-      <p id="claude-status" class="status"></p>
-      <div id="claude-results" class="grid"></div>
-    </section>
     <section>
       <ul id="site-status" class="site-status"></ul>
       <div id="results" class="grid"></div>
@@ -36,7 +28,7 @@
   </main>
 
   <footer class="foot">
-    MeoDeo · powered by <a href="https://github.com/vendemiaraul-cyber/Video-Finder/tree/main/gol" target="_blank" rel="noopener">Gol</a> and <a href="https://www.anthropic.com/claude" target="_blank" rel="noopener">Claude</a> ·
+    MeoDeo · powered by <a href="https://github.com/vendemiaraul-cyber/Video-Finder/tree/main/gol" target="_blank" rel="noopener">Gol</a> ·
     videos play in each website's own player and stay on that website
   </footer>
 
@@ -62,12 +54,17 @@
       </div>
       <div class="settings-body">
         <fieldset>
-          <legend>✦ Claude</legend>
-          <label>Anthropic API key
-            <input type="password" name="anthropicKey" autocomplete="off" placeholder="sk-ant-…">
+          <legend>SearXNG</legend>
+          <label>MeoDeo server address
+            <input type="url" name="serverUrl" autocomplete="off" placeholder="empty = this website (e.g. http://localhost:8787)">
           </label>
-          <label>Model <select name="claudeModel"></select></label>
-          <p class="hint">Claude searches the web for videos on any site. Your key is kept only in this browser and is sent only to api.anthropic.com. Each Claude search is billed to your Anthropic account. Get a key at <a href="https://platform.claude.com/" target="_blank" rel="noopener">platform.claude.com</a>.</p>
+          <p class="hint" id="server-state">SearXNG search runs through the MeoDeo Node server (<code>npm start</code>). Leave the address empty when you open MeoDeo from that server.</p>
+        </fieldset>
+        <fieldset>
+          <legend>🍪 Cookies</legend>
+          <label class="check"><input type="checkbox" name="autoOpenCookies" value="on">
+            <span>Open videos that need cookies (consent or sign-in) straight on their own website</span></label>
+          <p class="hint">Some sites only play a video with their own cookies, which they can't use inside MeoDeo. With this on, those videos open in a new tab on their site, where your cookies and sign-in work.</p>
         </fieldset>
         <fieldset id="site-keys">
           <legend>Website keys (optional)</legend>
