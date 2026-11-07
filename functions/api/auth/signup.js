@@ -5,4 +5,4 @@ import { endpoint, json, readJson, sessionCookie, clientIp } from "../../../serv
 export const onRequestPost = endpoint(async ({ request, db }) => {
   const { user, token } = await signup(db, await readJson(request), clientIp(request));
   return json(200, { user: { username: user.username } }, { "set-cookie": sessionCookie(token) });
-}, { write: true });
+}, { write: true, human: true });

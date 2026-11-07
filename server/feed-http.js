@@ -5,6 +5,7 @@ import { toVideos } from "./searxng.js";
 import { workerFetchPage } from "./worker-fetch.js";
 import { oembedMeta } from "./oembed.js";
 import { FeedError, ensureSchema, currentUser } from "./feed.js";
+import { requireHuman } from "./human.js";
 
 const SESSION_MAX_AGE = 30 * 86400;
 
@@ -31,11 +32,12 @@ export async function readJson(request) {
  * Wrap a feed endpoint: database check, same-site check for writes, schema,
  * current user, and errors as JSON.
  */
-export function endpoint(fn, { write = false } = {}) {
+export function endpoint(fn, { write = false, human = false } = {}) {
   return async (context) => {
     const { request, env } = context;
     if (!env.DB) return json(503, { error: "The feed isn't set up yet: this Cloudflare project has no D1 database bound as DB.", code: "no-db" });
     if (write && !fromThisSite(request)) return json(403, { error: "Requests must come from MeoDeo.", code: "cross-site" });
+    if (human) { const notHuman = await requireHuman(request, env); if (notHuman) return notHuman; }
     try {
       await ensureSchema(env.DB);
       const user = await currentUser(env.DB, request);

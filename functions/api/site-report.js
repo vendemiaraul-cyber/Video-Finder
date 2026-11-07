@@ -15,7 +15,7 @@ export async function onRequestPost({ request, env }) {
   try {
     const ip = request.headers.get("cf-connecting-ip") || "";
     await rateLimit(env.DB, `report:${(await sha256("meodeo-ip:" + ip)).slice(0, 24)}`, 86_400_000, 40);
-  } catch { return json(429, { error: "Too many reports today." }); }
+  } catch (err) { if (err?.status === 429) return json(429, { error: "Too many reports today." }); throw err; }
   await env.DB.prepare(`INSERT INTO site_policy (domain, reports, updated) VALUES (?, 1, ?)
     ON CONFLICT(domain) DO UPDATE SET reports = reports + 1, updated = excluded.updated`).bind(domain, Date.now()).run();
   return json(200, { ok: true, stored: true });

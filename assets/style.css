@@ -140,3 +140,19 @@ fieldset input, fieldset select { font: inherit; padding: 8px 10px; border: 1px 
 .auth-switch { display: flex; gap: 4px; }
 .auth-error { margin: 0; color: #b91c1c; font-size: 13px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .auth-error { color: #f87171; } }
+
+/* human verification */
+dialog.verify { width: min(440px, calc(100vw - 32px)); }
+dialog.verify::backdrop { background: color-mix(in srgb, var(--bg) 70%, #000 30%); backdrop-filter: blur(6px); }
+.verify-body { padding: 20px 18px; display: grid; gap: 12px; justify-items: center; text-align: center; }
+.verify-body h2 { margin: 0; font-size: 19px; }
+.verify-body .hint { margin: 0; }
+.verify-options { display: grid; gap: 10px; width: 100%; }
+.verify-option { display: grid; gap: 3px; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font: inherit; cursor: pointer; }
+.verify-option strong { font-size: 15px; }
+.verify-option span { font-size: 12.5px; color: var(--muted); }
+.verify-option:hover, .verify-option:focus-visible { border-color: var(--accent); outline: none; }
+.verify-option[disabled] { opacity: .55; cursor: not-allowed; }
+.verify-panel { display: grid; gap: 10px; justify-items: center; width: 100%; }
+.verify-panel { min-height: 78px; }

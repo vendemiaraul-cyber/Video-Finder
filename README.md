@@ -100,6 +100,26 @@ The server only opens public web pages: it refuses private and local network add
 
 On GitHub Pages (no server), MeoDeo still searches the other websites directly. To add SearXNG there, run the MeoDeo server and put its address in ⚙ Settings → SearXNG.
 
+## Human verification (hCaptcha or Cloudflare Turnstile)
+
+On first visit MeoDeo asks visitors to prove they're human, so bots don't use up the free servers. They pick one of two free services:
+
+- **🧩 hCaptcha**: the classic CAPTCHA (pick the matching pictures).
+- **☁️ Cloudflare Turnstile**: usually takes a moment with no puzzle; sometimes one click.
+
+Passing sets a signed cookie for 7 days. **In-app browsers** (TikTok, Instagram, Facebook, Snapchat, X, LinkedIn, LINE, WeChat, Pinterest, Threads) skip the check. That's detected from the browser's user agent, which a bot could fake, so rate limits stay in place. Page checks (`/api/probe`), sign-ups and posting require verification; the Claude skill's endpoints (`/api/search`, `/api/youtube`) don't.
+
+Verification is **off until a service has its keys**. Add them to the Cloudflare Pages project (Settings → Variables and Secrets), then redeploy:
+
+| Name | Type | Where to get it |
+|---|---|---|
+| `HCAPTCHA_SITE_KEY` | Text | dashboard.hcaptcha.com → Sites → your site |
+| `HCAPTCHA_SECRET` | Secret | dashboard.hcaptcha.com → Settings → Secret key |
+| `TURNSTILE_SITE_KEY` | Text | Cloudflare dashboard → Turnstile → your widget |
+| `TURNSTILE_SECRET` | Secret | same widget → Secret key |
+
+Either pair alone turns on that option. Both services are free (Turnstile: unlimited checks; hCaptcha: free Basic plan). The cookie-signing secret is created automatically in D1 (or set `MEODEO_SECRET`).
+
 ## Black screens
 
 Some players load but never show anything. MeoDeo switches to the "watch on site" panel by itself when a player doesn't load in 20 seconds (15 for video files), and the player has a **Not playing?** button. For websites without a Gol definition, that also reports the site; after a few reports (more than times it worked), searches flag it as "site only".

@@ -5,4 +5,4 @@ import { endpoint, json, readJson, resolveVideo } from "../../../server/feed-htt
 export const onRequestPost = endpoint(async ({ request, db, user }) => {
   const post = await createPost(db, user, await readJson(request), { resolveVideo });
   return json(201, { post });
-}, { write: true });
+}, { write: true, human: true });

@@ -75,6 +75,21 @@
     </div>
   </dialog>
 
+  <dialog id="verify" class="verify" aria-labelledby="verify-title">
+    <div class="verify-body">
+      <img src="assets/favicon.svg" alt="" width="40" height="40">
+      <h2 id="verify-title">Quick check: are you human?</h2>
+      <p class="hint">This keeps bots from using up MeoDeo's free servers. Pick one:</p>
+      <div class="verify-options">
+        <button type="button" id="verify-pick-hcaptcha" class="verify-option"><strong>🧩 hCaptcha</strong><span>The classic CAPTCHA: pick the matching pictures.</span></button>
+        <button type="button" id="verify-pick-turnstile" class="verify-option"><strong>☁️ Cloudflare Turnstile</strong><span>Usually takes a moment with no puzzle; sometimes one click.</span></button>
+      </div>
+      <div id="verify-widget" class="verify-panel" hidden></div>
+      <p id="verify-error" class="auth-error" role="alert" hidden></p>
+      <p class="hint">Opened MeoDeo inside TikTok, Instagram or another app? You skip this step.</p>
+    </div>
+  </dialog>
+
   <dialog id="auth" aria-labelledby="auth-title">
     <form method="dialog" id="auth-form">
       <div class="player-head">

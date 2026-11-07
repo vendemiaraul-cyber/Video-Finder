@@ -8,6 +8,7 @@ import { checkCandidate, skipList } from "../../server/searxng.js";
 import { workerFetchPage } from "../../server/worker-fetch.js";
 import { ensureSchema } from "../../server/feed.js";
 import { setting, policyFor } from "./search.js";
+import { requireHuman } from "../../server/human.js";
 
 const TTL = 3 * 86_400_000;
 const json = (status, data) => Response.json(data, { status, headers: { "cache-control": "no-store" } });
@@ -15,6 +16,8 @@ const json = (status, data) => Response.json(data, { status, headers: { "cache-c
 export async function onRequestPost({ request, env }) {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) return json(403, { error: "Requests must come from MeoDeo." });
+  const notHuman = await requireHuman(request, env);
+  if (notHuman) return notHuman;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: "Send JSON." }); }
   const result = body?.result;

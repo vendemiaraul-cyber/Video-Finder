@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { createPost, LIMITS } from "../server/feed.js";
+import { humanCookie, checkToken, isInAppBrowser } from "../server/human.js";
+import { onRequestGet as verifyGet, onRequestPost as verifyPost } from "../functions/api/verify.js";
 import { onRequestPost as signupFn } from "../functions/api/auth/signup.js";
 import { onRequestPost as loginFn } from "../functions/api/auth/login.js";
 import { onRequestPost as logoutFn } from "../functions/api/auth/logout.js";
@@ -23,15 +25,19 @@ function fakeD1() {
 }
 
 const SITE = "https://meodeo.pages.dev";
-const req = (path, { method = "GET", body, cookie, origin = SITE, ip = "203.0.113.7" } = {}) => new Request(SITE + path, {
+// Test visitors have passed verification (env.MEODEO_SECRET signs the cookie).
+const SECRET = "test-secret";
+const HUMAN = (await humanCookie(SECRET)).split(";")[0];
+const req = (path, { method = "GET", body, cookie, origin = SITE, ip = "203.0.113.7", human = true, ua } = {}) => new Request(SITE + path, {
   method,
-  headers: { ...(body ? { "content-type": "application/json" } : {}), ...(cookie ? { cookie } : {}), ...(origin ? { origin } : {}), "cf-connecting-ip": ip },
+  headers: { ...(body ? { "content-type": "application/json" } : {}), cookie: [human ? HUMAN : "", cookie || ""].filter(Boolean).join("; "),
+             ...(origin ? { origin } : {}), "cf-connecting-ip": ip, ...(ua ? { "user-agent": ua } : {}) },
   body: body ? JSON.stringify(body) : undefined,
 });
 const cookieOf = (res) => (res.headers.get("set-cookie") || "").split(";")[0];
 
 test("sign up, who am I, log out, log in", async () => {
-  const env = { DB: fakeD1() };
+  const env = { DB: fakeD1(), MEODEO_SECRET: SECRET };
   const up = await signupFn({ request: req("/api/auth/signup", { method: "POST", body: { username: "raul", password: "correct horse" } }), env });
   assert.equal(up.status, 200);
   const setCookie = up.headers.get("set-cookie");
@@ -52,7 +58,7 @@ test("sign up, who am I, log out, log in", async () => {
 });
 
 test("passwords are stored hashed, never in clear", async () => {
-  const env = { DB: fakeD1() };
+  const env = { DB: fakeD1(), MEODEO_SECRET: SECRET };
   await signupFn({ request: req("/api/auth/signup", { method: "POST", body: { username: "ana", password: "my secret pw" } }), env });
   const row = await env.DB.prepare("SELECT * FROM users WHERE username = 'ana'").first();
   assert.ok(!JSON.stringify(row).includes("my secret pw"));
@@ -62,7 +68,7 @@ test("passwords are stored hashed, never in clear", async () => {
 });
 
 test("post, public feed, and deleting only your own posts", async () => {
-  const env = { DB: fakeD1() };
+  const env = { DB: fakeD1(), MEODEO_SECRET: SECRET };
   const a = cookieOf(await signupFn({ request: req("/api/auth/signup", { method: "POST", body: { username: "alice", password: "password1" } }), env }));
   const b = cookieOf(await signupFn({ request: req("/api/auth/signup", { method: "POST", body: { username: "bob", password: "password2" }, ip: "198.51.100.2" }), env }));
 
@@ -90,7 +96,7 @@ test("post, public feed, and deleting only your own posts", async () => {
 });
 
 test("videos that can't play in MeoDeo aren't accepted in the feed", async () => {
-  const env = { DB: fakeD1() };
+  const env = { DB: fakeD1(), MEODEO_SECRET: SECRET };
   await signupFn({ request: req("/api/auth/signup", { method: "POST", body: { username: "carl", password: "password3" } }), env });
   const user = await env.DB.prepare("SELECT id, username FROM users").first();
   const siteOnly = async () => ({ id: "x", site: "web", domain: "blocked.example", title: "X", url: "https://blocked.example/v", play: { kind: "link" } });
@@ -99,7 +105,7 @@ test("videos that can't play in MeoDeo aren't accepted in the feed", async () =>
 });
 
 test("cross-site writes, missing database, and sign-up limits", async () => {
-  const env = { DB: fakeD1() };
+  const env = { DB: fakeD1(), MEODEO_SECRET: SECRET };
   const evil = await signupFn({ request: req("/api/auth/signup", { method: "POST", origin: "https://evil.example", body: { username: "eve", password: "password4" } }), env });
   assert.equal(evil.status, 403);
   assert.equal((await feedFn({ request: req("/api/feed"), env: {} })).status, 503);
@@ -114,7 +120,7 @@ import { onRequestPost as probeFn } from "../functions/api/probe.js";
 import { onRequestPost as reportFn } from "../functions/api/site-report.js";
 
 test("page checks are saved in D1 and reused", async () => {
-  const env = { DB: fakeD1() };
+  const env = { DB: fakeD1(), MEODEO_SECRET: SECRET };
   const call = () => probeFn({ request: req("/api/probe", { method: "POST", body: { result: { url: "https://vimeo.com/76979871", title: "Vimeo one", category: "videos" } } }), env });
   const first = await (await call()).json();
   assert.equal(first.video.site, "vimeo");
@@ -126,10 +132,83 @@ test("page checks are saved in D1 and reused", async () => {
 });
 
 test("Not playing? reports are counted per site", async () => {
-  const env = { DB: fakeD1() };
+  const env = { DB: fakeD1(), MEODEO_SECRET: SECRET };
   for (let i = 0; i < 3; i++) {
     assert.equal((await reportFn({ request: req("/api/site-report", { method: "POST", body: { url: "https://www.blackscreen.example/v/" + i } }), env })).status, 200);
   }
   const row = await env.DB.prepare("SELECT reports FROM site_policy WHERE domain = 'blackscreen.example'").first();
   assert.equal(row.reports, 3);
+});
+
+// hCaptcha's and Cloudflare's published test keys (their widgets always pass with these).
+const TEST_KEYS = {
+  HCAPTCHA_SITE_KEY: "10000000-ffff-ffff-ffff-000000000001", HCAPTCHA_SECRET: "0x0000000000000000000000000000000000000000",
+  TURNSTILE_SITE_KEY: "1x00000000000000000000AA", TURNSTILE_SECRET: "1x0000000000000000000000000000000AA",
+};
+/** Stand-in for hCaptcha's and Cloudflare's servers: the answer "good-token" passes. */
+function fakeVerifiers() {
+  const real = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (url, init) => {
+    seen.push({ url: String(url), body: String(init?.body || "") });
+    return { json: async () => ({ success: init.body.get("response") === "good-token" }) };
+  };
+  return { seen, restore: () => (globalThis.fetch = real) };
+}
+
+test("hCaptcha and Turnstile answers are checked with their own servers", async () => {
+  const env = { ...TEST_KEYS };
+  let sent;
+  const svc = async (url, init) => { sent = { url, body: String(init.body) }; return { json: async () => ({ success: init.body.get("response") === "ok", "error-codes": ["invalid-input-response"] }) }; };
+  assert.deepEqual(await checkToken("hcaptcha", env, "ok", "1.2.3.4", svc), { ok: true });
+  assert.equal(sent.url, "https://api.hcaptcha.com/siteverify");
+  assert.match(sent.body, /secret=0x0+&response=ok&remoteip=1.2.3.4&sitekey=10000000-ffff-ffff-ffff-000000000001/);
+  assert.deepEqual(await checkToken("turnstile", env, "ok", "", svc), { ok: true });
+  assert.equal(sent.url, "https://challenges.cloudflare.com/turnstile/v0/siteverify");
+  assert.deepEqual(await checkToken("turnstile", env, "nope", "", svc), { ok: false, reason: "invalid-input-response" });
+  assert.equal((await checkToken("hcaptcha", {}, "ok", "", svc)).reason, "not-set-up");
+  assert.equal((await checkToken("turnstile", env, "", "", svc)).reason, "missing");
+});
+
+test("verification: passing sets the cookie, unverified visitors can't sign up, in-app browsers skip", async () => {
+  const env = { DB: fakeD1(), MEODEO_SECRET: SECRET, ...TEST_KEYS };
+  const status = await (await verifyGet({ request: req("/api/verify", { human: false }), env })).json();
+  assert.deepEqual(status, { required: true, inApp: false, verified: false, hcaptchaSiteKey: TEST_KEYS.HCAPTCHA_SITE_KEY, turnstileSiteKey: TEST_KEYS.TURNSTILE_SITE_KEY });
+  const blocked = await signupFn({ request: req("/api/auth/signup", { method: "POST", human: false, body: { username: "bot", password: "password9" } }), env });
+  assert.equal(blocked.status, 401);
+  assert.equal((await blocked.json()).code, "verify-required");
+
+  const svc = fakeVerifiers();
+  try {
+    assert.equal((await verifyPost({ request: req("/api/verify", { method: "POST", human: false, body: { method: "hcaptcha", token: "bad" } }), env })).status, 400);
+    for (const method of ["hcaptcha", "turnstile"]) {
+      const ok = await verifyPost({ request: req("/api/verify", { method: "POST", human: false, body: { method, token: "good-token" } }), env });
+      assert.equal(ok.status, 200, method);
+      assert.match(ok.headers.get("set-cookie"), /^meodeo_human=\d+\.[\w-]+; Path=\/; HttpOnly; Secure; SameSite=Lax/);
+    }
+    assert.ok(svc.seen.some((c) => c.url.includes("hcaptcha.com")) && svc.seen.some((c) => c.url.includes("challenges.cloudflare.com")));
+  } finally { svc.restore(); }
+
+  const signedUp = await signupFn({ request: req("/api/auth/signup", { method: "POST", body: { username: "real_person", password: "password9" } }), env });
+  assert.equal(signedUp.status, 200);
+
+  const tiktok = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 musical_ly_37.5.0 BytedanceWebview/d8a21c6";
+  assert.ok(isInAppBrowser(tiktok) && isInAppBrowser("Instagram 350.0") && !isInAppBrowser("Mozilla/5.0 Safari/604.1"));
+  assert.equal((await (await verifyGet({ request: req("/api/verify", { human: false, ua: tiktok }), env })).json()).verified, true);
+  assert.equal((await signupFn({ request: req("/api/auth/signup", { method: "POST", human: false, ua: tiktok, body: { username: "tiktok_user", password: "password9" } }), env })).status, 200);
+  assert.equal((await verifyPost({ request: req("/api/verify", { method: "POST", human: false, body: { method: "inapp" } }), env })).status, 400);
+});
+
+test("only the services with keys are offered", async () => {
+  const env = { DB: fakeD1(), MEODEO_SECRET: SECRET, TURNSTILE_SITE_KEY: "1x00000000000000000000AA", TURNSTILE_SECRET: "1x0000000000000000000000000000000AA" };
+  const st = await (await verifyGet({ request: req("/api/verify", { human: false }), env })).json();
+  assert.equal(st.hcaptchaSiteKey, null);
+  assert.equal(st.turnstileSiteKey, "1x00000000000000000000AA");
+});
+
+test("verification stays off until a service has its keys", async () => {
+  assert.deepEqual(await (await verifyGet({ request: req("/api/verify", { human: false }), env: {} })).json(), { required: false });
+  const env = { DB: fakeD1(), MEODEO_SECRET: SECRET }; // database, but no keys yet
+  assert.deepEqual(await (await verifyGet({ request: req("/api/verify", { human: false }), env })).json(), { required: false });
+  assert.equal((await signupFn({ request: req("/api/auth/signup", { method: "POST", human: false, body: { username: "early_bird", password: "password9" } }), env })).status, 200);
 });

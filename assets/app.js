@@ -123,6 +123,8 @@ let run = 0;
 
 async function search(query) {
   const id = ++run;
+  await humanReady; // verify first (no-op when not needed)
+  if (id !== run) return;
   // If the SearXNG check is still running (a sleeping server wakes slowly), wait for it,
   // so SearXNG isn't skipped just because the answer hasn't arrived yet.
   if (gol.unavailable.get("searxng") === "checking…") {
@@ -290,6 +292,12 @@ async function api(path, { method = "GET", body } = {}) {
   });
   let data = {};
   try { data = await res.json(); } catch { /* not JSON (e.g. no feed on this host) */ }
+  if (res.status === 401 && data.code === "verify-required" && !path.startsWith("/api/verify")) {
+    humanReady = new Promise((r) => (humanResolve = r));
+    showGate();
+    await humanReady;
+    return api(path, { method, body });
+  }
   if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status, code: data.code });
   return data;
 }
@@ -479,6 +487,91 @@ $("#player-share").addEventListener("click", () => {
   $("#post-caption").focus();
 });
 
+/* ---------- human verification (hCaptcha or Cloudflare Turnstile; in-app browsers skip) ---------- */
+
+let humanResolve;
+let humanReady = new Promise((r) => (humanResolve = r));
+let verifyKeys = {};
+const vErr = (msg) => { const e = $("#verify-error"); e.textContent = msg || ""; e.hidden = !msg; };
+
+const WIDGETS = {
+  hcaptcha: { script: "https://js.hcaptcha.com/1/api.js?render=explicit&onload=meodeoWidgetReady", global: "hcaptcha" },
+  turnstile: { script: "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=meodeoWidgetReady", global: "turnstile" },
+};
+
+async function checkHuman() {
+  let st;
+  try {
+    const res = await fetch("/api/verify", { credentials: "same-origin" });
+    st = res.ok ? await res.json() : { required: false };
+  } catch { st = { required: false }; } // static copy (e.g. GitHub Pages): nothing to verify
+  if (!st.required || st.verified) {
+    if (st.inApp) fetch("/api/verify", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: '{"method":"inapp"}' }).catch(() => {});
+    return humanResolve();
+  }
+  verifyKeys = { hcaptcha: st.hcaptchaSiteKey, turnstile: st.turnstileSiteKey };
+  $("#verify-pick-hcaptcha").hidden = !verifyKeys.hcaptcha;
+  $("#verify-pick-turnstile").hidden = !verifyKeys.turnstile;
+  showGate();
+}
+
+function showGate() {
+  vErr("");
+  $("#verify-widget").hidden = true;
+  if (!$("#verify").open) $("#verify").showModal();
+}
+// The check can't be dismissed with Esc.
+$("#verify").addEventListener("cancel", (e) => e.preventDefault());
+
+async function passed(method, token) {
+  vErr("");
+  try {
+    await api("/api/verify", { method: "POST", body: { method, token } });
+    $("#verify").close();
+    humanResolve();
+  } catch (err) {
+    vErr(err.message);
+    openWidget(method); // a fresh check
+  }
+}
+
+const loading = {};
+function loadWidget(id) {
+  const w = WIDGETS[id];
+  if (window[w.global]?.render) return Promise.resolve(window[w.global]);
+  loading[id] ||= new Promise((resolve, reject) => {
+    window.meodeoWidgetReady = () => resolve(window[w.global]);
+    const s = document.createElement("script");
+    s.src = w.script;
+    s.async = true;
+    s.onerror = () => { loading[id] = null; reject(new Error("blocked")); };
+    document.head.append(s);
+  });
+  return loading[id];
+}
+
+async function openWidget(id) {
+  const box = $("#verify-widget");
+  box.hidden = false;
+  box.replaceChildren(Object.assign(document.createElement("p"), { className: "hint", textContent: "Loading…" }));
+  try {
+    const lib = await loadWidget(id);
+    const slot = document.createElement("div");
+    box.replaceChildren(slot);
+    lib.render(slot, {
+      sitekey: verifyKeys[id],
+      theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+      callback: (token) => passed(id, token),
+      "error-callback": () => vErr("The check had a problem. Please try again, or pick the other option."),
+    });
+  } catch {
+    box.replaceChildren();
+    vErr(`${id === "hcaptcha" ? "hCaptcha" : "Cloudflare Turnstile"} couldn't load (a blocker may be stopping it). Try the other option.`);
+  }
+}
+$("#verify-pick-hcaptcha").addEventListener("click", () => openWidget("hcaptcha"));
+$("#verify-pick-turnstile").addEventListener("click", () => openWidget("turnstile"));
+
 /* ---------- boot ---------- */
 
 gol.unavailable.set("searxng", "checking…"); // until the first check answers
@@ -490,6 +583,7 @@ els.form.addEventListener("submit", (e) => {
 renderFilters();
 const directCount = [...gol.sites.values()].filter((s) => s.search && !s.needsServer).length;
 els.status.textContent = `Search ${directCount} video websites at once, plus the whole web through SearXNG.`;
+checkHuman();
 route();
 loadMe().then(() => { if (location.hash === "#feed") loadFeed(true); });
 const initial = new URLSearchParams(location.search).get("q");
