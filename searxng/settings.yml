@@ -36,8 +36,6 @@ engines:
     disabled: false
   - name: niconico
     disabled: false
-  - name: media.ccc.de
-    disabled: false
   - name: ina
     disabled: false
   - name: mediathekviewweb
@@ -70,4 +68,7 @@ engines:
   - name: vimeo
     disabled: true
   - name: wikidata
+    disabled: true
+  # Answers almost any query with its own conference talks, matching or not.
+  - name: media.ccc.de
     disabled: true
