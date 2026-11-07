@@ -395,3 +395,11 @@ test("videos that play in MeoDeo come first", async () => {
   const { videos } = await toVideos([{ url: "https://a.example/1" }, { url: "https://b.example/1" }, { url: "https://c.example/1" }], { gol, cache, probeOpts: { fetch: fetchPage } });
   assert.deepEqual(videos.map((v) => v.domain), ["b.example", "c.example", "a.example"]);
 });
+
+test("pages that couldn't be checked are kept only when a video source listed them", async () => {
+  const cache = new Map([["probe:https://news.example/a", { kind: "unreachable", reason: "HTTP 403" }],
+                         ["probe:https://vids.example/a", { kind: "unreachable", reason: "timed out" }]]);
+  const { videos } = await toVideos([{ url: "https://news.example/a", category: "news" }, { url: "https://vids.example/a", category: "videos" }],
+    { gol, cache, probeOpts: { fetch: fetchPage } });
+  assert.deepEqual(videos.map((v) => v.domain), ["vids.example"]);
+});

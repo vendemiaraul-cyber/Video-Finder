@@ -201,9 +201,9 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
     const insidePlay = p.inside ? { inside: { kind: "iframe", src: p.inside } } : {};
     if (p.kind === "cookies") { stats.cookies++; return { ...web, needsCookies: true, play: { kind: "link", ...insidePlay } }; }
     if (p.kind === "link") return { ...web, play: { kind: "link", ...insidePlay } };
-    // unreachable from the server (timeout, blocked): SearXNG listed it as a video, so keep it as a link
-    // ("budget": we ran out of page checks for this search, so we know nothing: drop it)
-    if (p.kind === "unreachable" && p.reason !== "blocked" && p.reason !== "budget") return { ...web, play: { kind: "link" } };
+    // Couldn't check the page (timeout, refused, out of checks): keep it only if one of
+    // SearXNG's video sources listed it, since that's our only sign it really is a video.
+    if (p.kind === "unreachable" && isVideoResult(r) && p.reason !== "blocked" && p.reason !== "budget") return { ...web, play: { kind: "link" } };
     return null;
   });
   // Videos that play in MeoDeo first, then pages that open inside it, then site-only.
