@@ -1,0 +1,438 @@
+{
+  "built": "2026-11-07",
+  "repo": "https://github.com/vendemiaraul-cyber/Video-Finder",
+  "current": {
+    "version": "0.16",
+    "title": "Admin page and automatic bans for adult-labelled sites",
+    "path": "./",
+    "commit": "f293cdd",
+    "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commits/claude/exciting-pascal-a5oxse",
+    "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/claude/exciting-pascal-a5oxse",
+    "date": "2026-11-07T18:42:18+00:00",
+    "summary": "Owner ban list, admin page, and automatic bans for adult-labelled sites",
+    "details": "- banned_sites table: banned websites (and subdomains) are left out of\n  search (/api/blocklist), their feed posts are hidden, and they can't\n  be posted.\n- admin.html + POST /api/admin, locked with an ADMIN_KEY secret: ban and\n  unban websites, review takedowns, reports and hidden posts. Text only,\n  no thumbnails or players. Wrong passwords are rate-limited.\n- The page checker drops pages that label themselves adult-only (RTA\n  label, rating meta, isFamilyFriendly=false, 18+ age tag, 2257\n  statement), including pages that need cookies, and bans the website\n  automatically.\n- SearXNG uses strict safe search.",
+    "changes": [
+      {
+        "commit": "f293cdd",
+        "subject": "Owner ban list, admin page, and automatic bans for adult-labelled sites"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "version": "0.15",
+      "slug": "v0-15",
+      "title": "Pexels through the server with a private key",
+      "path": "versions/v0-15/",
+      "commit": "d6075ef",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/d6075ef524cdc07e88641ae12c6e2129fcc45a83",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/d6075ef524cdc07e88641ae12c6e2129fcc45a83",
+      "date": "2026-11-07T18:27:29+00:00",
+      "summary": "Search Pexels through the server with a private key",
+      "details": "Pexels used to be searched from the browser with a key each visitor had\nto paste in Settings. MeoDeo's server now searches it (/api/pexels) with\nthe site's own key, stored as an encrypted Cloudflare Secret\n(PEXELS_API_KEY): the key is only sent to api.pexels.com and never\nreaches browsers. Only MeoDeo's pages may use the route, each visitor\nhas an hourly limit, and results are cached for a day so the free Pexels\nallowance lasts. Keys saved in browsers by older versions are deleted.",
+      "notes": [],
+      "changes": [
+        {
+          "commit": "d6075ef",
+          "subject": "Search Pexels through the server with a private key"
+        }
+      ],
+      "files": 25,
+      "sizeKB": 188
+    },
+    {
+      "version": "0.14",
+      "slug": "v0-14",
+      "title": "Languages, rules and takedowns; Dailymotion fix",
+      "path": "versions/v0-14/",
+      "commit": "809dd4a",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/809dd4a3ea5815ae3cc8e44d85d061e037cbe892",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/809dd4a3ea5815ae3cc8e44d85d061e037cbe892",
+      "date": "2026-11-07T18:22:01+00:00",
+      "summary": "Fix Dailymotion embeds, add languages, add rules, reports and takedowns",
+      "details": "Dailymotion: since 28 Sept 2026 embeds need a Player ID, and the old\nplayer.html link answers 403 (black screen). Dailymotion videos now play\nthrough geo.dailymotion.com/player/<ID>.html once a Player ID is set\n(in gol/sites/dailymotion.js or Settings), and open on dailymotion.com\nuntil then. Explicit and non-embeddable videos are skipped or linked.\n\nLanguages: a language menu translates MeoDeo with Google's free website\ntranslator, loaded only after someone picks a language.\n\nTakedown protection: Terms, Rules, Privacy and Copyright page with a\ntakedown form that removes a link at once from the feed and search\nresults; a Report button on feed posts (hidden after 3 reporters); a\ncontent filter for adult, shock and piracy sites and words; and a\n13+ / Terms agreement at sign-up.",
+      "notes": [],
+      "changes": [
+        {
+          "commit": "809dd4a",
+          "subject": "Fix Dailymotion embeds, add languages, add rules, reports and takedowns"
+        }
+      ],
+      "files": 25,
+      "sizeKB": 187
+    },
+    {
+      "version": "0.13",
+      "slug": "v0-13",
+      "title": "Videos that match the search come first",
+      "path": "versions/v0-13/",
+      "commit": "23a1440",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/23a144052fef3e6d3683c9a44c634ff57533a8be",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/23a144052fef3e6d3683c9a44c634ff57533a8be",
+      "date": "2026-11-07T16:46:33+00:00",
+      "summary": "Show videos that match the search first, unrelated results below",
+      "details": "Searching \"moon\" used to mix music videos in with videos about the\nMoon. Results are now split: videos whose title (or description) matches\nthe search come first, and off-topic ones (songs, lyric videos, games,\npoems, or titles that miss the search words) go in a collapsed\n\"other results\" section below. Sources now pass descriptions through\nso the match can use them. The MeoDeo skill uses the same ranking.",
+      "notes": [
+        "Sign-up: see v0.8.",
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "ea74643",
+          "subject": "Skill: list the best-matching videos first"
+        },
+        {
+          "commit": "23a1440",
+          "subject": "Show videos that match the search first, unrelated results below"
+        }
+      ],
+      "files": 22,
+      "sizeKB": 159
+    },
+    {
+      "version": "0.12",
+      "slug": "v0-12",
+      "title": "Human verification (hCaptcha or Cloudflare Turnstile)",
+      "path": "versions/v0-12/",
+      "commit": "19e58b5",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/19e58b50865c6ccaf6d513b4b52cc9f3794083ed",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/19e58b50865c6ccaf6d513b4b52cc9f3794083ed",
+      "date": "2026-11-07T12:37:05+00:00",
+      "summary": "Human verification with hCaptcha or Cloudflare Turnstile",
+      "details": "- server/human.js: answers are checked with hCaptcha's and Cloudflare's\n  siteverify; a signed 7-day cookie; in-app browsers (TikTok, Instagram,\n  Facebook, Snapchat...) skip. The signing secret is created once in D1.\n  Verification turns on when HCAPTCHA_* or TURNSTILE_* keys exist.\n- functions/api/verify.js; page checks, sign-ups and posts require it.\n- UI: a verification screen offering hCaptcha or Turnstile (official\n  widgets); searches wait for it; can't be dismissed with Esc.\n- Tests use the services' published test keys.",
+      "notes": [
+        "Verification stays switched off on the live site (no keys were added), so it doesn't appear.",
+        "Sign-up: see v0.8.",
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "19e58b5",
+          "subject": "Human verification with hCaptcha or Cloudflare Turnstile"
+        }
+      ],
+      "files": 21,
+      "sizeKB": 152
+    },
+    {
+      "version": "0.11",
+      "slug": "v0-11",
+      "title": "Auto-Filter removed",
+      "path": "versions/v0-11/",
+      "commit": "4af8ec9",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/4af8ec95141f2b820a450a7d118001098ae310ad",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/4af8ec95141f2b820a450a7d118001098ae310ad",
+      "date": "2026-11-07T11:13:36+00:00",
+      "summary": "Keep hidden elements hidden; don't tag posted videos as SearXNG results",
+      "details": "- [hidden] now wins over rules that set display (the post form, sign-in\n  details and Load more showed when they shouldn't).\n- Videos posted to the feed no longer carry via: searxng.",
+      "notes": [
+        "Sign-up: see v0.8.",
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "79d6e77",
+          "subject": "Remove Auto-Filter"
+        },
+        {
+          "commit": "4af8ec9",
+          "subject": "Keep hidden elements hidden; don't tag posted videos as SearXNG results"
+        }
+      ],
+      "files": 21,
+      "sizeKB": 147
+    },
+    {
+      "version": "0.10",
+      "slug": "v0-10",
+      "title": "Auto-Filter, black-screen watchdog, \"Not playing?\"",
+      "path": "versions/v0-10/",
+      "commit": "db9842d",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/db9842d4de6c8a92e80da23e4622b639e54716f8",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/db9842d4de6c8a92e80da23e4622b639e54716f8",
+      "date": "2026-11-07T10:53:44+00:00",
+      "summary": "Auto-Filter, black-screen watchdog and Not playing? reports",
+      "details": "- gol/autofilter.js: picks sources by the search's topic and learns per\n  word which sources find something (kept in the browser). On by default\n  as the first chip; picking a source by hand turns it off.\n- Players that don't load in 20 s (video files: 15 s) switch to the\n  watch-on-site panel; the player has a Not playing? button that does the\n  same and reports pages without a Gol definition to /api/site-report.",
+      "notes": [
+        "Sign-up: see v0.8.",
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "db9842d",
+          "subject": "Auto-Filter, black-screen watchdog and Not playing? reports"
+        }
+      ],
+      "files": 22,
+      "sizeKB": 153
+    },
+    {
+      "version": "0.9",
+      "slug": "v0-9",
+      "title": "Many more SearXNG results",
+      "path": "versions/v0-9/",
+      "commit": "b21fa00",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/b21fa00bbc97b218f06817cae6a8922a45d9d6a2",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/b21fa00bbc97b218f06817cae6a8922a45d9d6a2",
+      "date": "2026-11-07T10:52:03+00:00",
+      "summary": "Check SearXNG pages in separate requests for many more results",
+      "details": "- /api/search?mode=candidates answers at once with known-site videos and\n  the other pages as candidates (sites remembered as refusing are dropped\n  or flagged), with one batched site-memory query; page=2 fetches more.\n- /api/probe checks one page per request, so a search isn't limited by a\n  single request's 50 outside calls; answers are kept 3 days in D1.\n- The SearXNG source checks up to 48 pages, 6 at a time, shows results as\n  they're confirmed (Gol sites can now emit partial results), and asks\n  SearXNG for a second page when fewer than 15 play in MeoDeo.\n- /api/site-report counts black-screen reports per site; sites reported\n  more often than they worked get flagged.\n- Node server supports the same flow.",
+      "notes": [
+        "Sign-up: see v0.8.",
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "dd16b33",
+          "subject": "Drop unchecked web and news pages from SearXNG results"
+        },
+        {
+          "commit": "b21fa00",
+          "subject": "Check SearXNG pages in separate requests for many more results"
+        }
+      ],
+      "files": 21,
+      "sizeKB": 145
+    },
+    {
+      "version": "0.8",
+      "slug": "v0-8",
+      "title": "Public feed with MeoDeo accounts",
+      "path": "versions/v0-8/",
+      "commit": "186dabc",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/186dabc00848c33bac4e152ad482b8a69fbef58e",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/186dabc00848c33bac4e152ad482b8a69fbef58e",
+      "date": "2026-11-07T10:16:36+00:00",
+      "summary": "Public feed with MeoDeo accounts on Cloudflare D1",
+      "details": "- server/feed.js: accounts (salted PBKDF2 hashes), sessions (random\n  tokens, stored hashed, HttpOnly/Secure/SameSite cookies), posts that\n  must play inside MeoDeo, public feed with paging, deleting your own\n  posts, rate limits with hashed IPs. Tables are created on first use.\n- functions/api: auth/signup, auth/login, auth/logout, me, feed, posts,\n  posts/[id]; writes only from MeoDeo's own origin.\n- Posted links get title/channel/thumbnail from the site's oEmbed.\n- UI: Search/Feed tabs, account dialog, post form, Post to feed button in\n  the player.\n- Tests run the functions against a SQLite stand-in for D1.",
+      "notes": [
+        "Creating an account here fails: sign-up now needs the 13+ and Terms agreement added in v0.14. Signing in works.",
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "186dabc",
+          "subject": "Public feed with MeoDeo accounts on Cloudflare D1"
+        }
+      ],
+      "files": 21,
+      "sizeKB": 142
+    },
+    {
+      "version": "0.7",
+      "slug": "v0-7",
+      "title": "Remembers which sites allow embedding; \"site only\" flag",
+      "path": "versions/v0-7/",
+      "commit": "b77a038",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/b77a038b36959c608507b5b4aa4f9b608ef92989",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/b77a038b36959c608507b5b4aa4f9b608ef92989",
+      "date": "2026-11-07T10:11:50+00:00",
+      "summary": "Remember which sites allow embedding; flag the ones that refuse",
+      "details": "- server/site-policy.js: per-site record of what page checks found\n  (allowed, inside, blocked, cookies). Sites that refused twice and never\n  allowed anything are flagged and skipped by later checks, so the budget\n  goes to other sites. Stored in D1 when the feed database exists, else\n  Cloudflare's cache; in memory on the Node server.\n- SearXNG also searches the news category; up to 30 page checks.\n- Results that play in MeoDeo are listed first; cards from sites that\n  refuse embedding get a \"site only\" flag; a setting hides them.",
+      "notes": [
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "bb2da27",
+          "subject": "Keep page checks within Cloudflare's 50-request limit"
+        },
+        {
+          "commit": "b77a038",
+          "subject": "Remember which sites allow embedding; flag the ones that refuse"
+        }
+      ],
+      "files": 21,
+      "sizeKB": 130
+    },
+    {
+      "version": "0.6",
+      "slug": "v0-6",
+      "title": "SearXNG finds other websites; more videos play inside MeoDeo",
+      "path": "versions/v0-6/",
+      "commit": "7240a0d",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/7240a0dce12577ccf98d0a083fc357a7ac38225b",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/7240a0dce12577ccf98d0a083fc357a7ac38225b",
+      "date": "2026-11-07T09:59:51+00:00",
+      "summary": "Play more websites' videos inside MeoDeo; cookies inside the player",
+      "details": "- oEmbed: the probe asks sites for their official player, through the\n  page's oEmbed tag or the oembed.com provider list (gol/oembed-providers.js,\n  refreshed by scripts/update-oembed-providers.mjs).\n- HLS (.m3u8) streams are playable; the renderer uses hls.js 1.7.3 when\n  the browser has no native HLS, and falls back to the watch-on-site panel\n  when a file or stream won't play.\n- Pages that allow being framed get a \"Play here\" button (play.inside).\n- Cookie setting: play cookie-needing videos inside MeoDeo (default; the\n  site opens in the player with Storage Access allowed) or open them on\n  their site.",
+      "notes": [
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "fe7ca83",
+          "subject": "Make SearXNG find videos on other websites"
+        },
+        {
+          "commit": "a30f53b",
+          "subject": "Lighten SearXNG for Render's small free server"
+        },
+        {
+          "commit": "865515b",
+          "subject": "Check more SearXNG pages, video sources first"
+        },
+        {
+          "commit": "2654b51",
+          "subject": "At most 3 SearXNG results per website"
+        },
+        {
+          "commit": "4a4f5dd",
+          "subject": "Turn off media.ccc.de in SearXNG"
+        },
+        {
+          "commit": "7240a0d",
+          "subject": "Play more websites' videos inside MeoDeo; cookies inside the player"
+        }
+      ],
+      "files": 21,
+      "sizeKB": 128
+    },
+    {
+      "version": "0.5",
+      "slug": "v0-5",
+      "title": "TikTok player and the \"SearXNG Results\" label",
+      "path": "versions/v0-5/",
+      "commit": "2e331d4",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/2e331d4252728749ef107e79386b9371fa5c38c7",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/2e331d4252728749ef107e79386b9371fa5c38c7",
+      "date": "2026-11-07T09:28:03+00:00",
+      "summary": "TikTok Embed Player; label SearXNG finds as \"SearXNG Results\"",
+      "details": "- TikTok: use the official Embed Player (tiktok.com/player/v1) in a\n  vertical frame instead of embed/v2, which covers the video with a\n  watch-on-TikTok prompt. Any Gol video can now ask for a vertical frame.\n- Cards and the player show a \"SearXNG Results\" badge for videos SearXNG\n  found, with the real website next to it.\n- Skill: same label, TikTok note.",
+      "notes": [
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "990d716",
+          "subject": "Add the meodeo-video-search skill as a Claude Code plugin"
+        },
+        {
+          "commit": "2e331d4",
+          "subject": "TikTok Embed Player; label SearXNG finds as \"SearXNG Results\""
+        }
+      ],
+      "files": 20,
+      "sizeKB": 68
+    },
+    {
+      "version": "0.4",
+      "slug": "v0-4",
+      "title": "SearXNG on Cloudflare, hosted on Render",
+      "path": "versions/v0-4/",
+      "commit": "597da80",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/597da808602eed55b4bbece9f91e64a55d5dfdb9",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/597da808602eed55b4bbece9f91e64a55d5dfdb9",
+      "date": "2026-11-07T09:21:03+00:00",
+      "summary": "Wait for the SearXNG check before searching",
+      "details": "A search started while the page was still checking SearXNG (slow when a\nfree server wakes up) skipped SearXNG. Searches now wait for the pending\ncheck, and SearXNG counts as 'checking' from the first paint.",
+      "notes": [
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "3dee3de",
+          "subject": "SearXNG on Cloudflare via a private Hugging Face Space"
+        },
+        {
+          "commit": "6fa9c96",
+          "subject": "Host SearXNG behind a key lock (Render-ready)"
+        },
+        {
+          "commit": "eb45f66",
+          "subject": "Give a sleeping SearXNG server time to wake up"
+        },
+        {
+          "commit": "c115852",
+          "subject": "Ignore spaces and line breaks around SearXNG keys and address"
+        },
+        {
+          "commit": "abf7588",
+          "subject": "Accept numbered Cloudflare setting names (SEARXNG_URL1, SEARXNG_KEY1)"
+        },
+        {
+          "commit": "597da80",
+          "subject": "Wait for the SearXNG check before searching"
+        }
+      ],
+      "files": 20,
+      "sizeKB": 68
+    },
+    {
+      "version": "0.3",
+      "slug": "v0-3",
+      "title": "Better YouTube player, Odysee fix, YouTube's own search",
+      "path": "versions/v0-3/",
+      "commit": "5fd630f",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/5fd630ff6842816ee280a83f30e2153fa9679210",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/5fd630ff6842816ee280a83f30e2153fa9679210",
+      "date": "2026-11-07T08:16:43+00:00",
+      "summary": "Fix Odysee playback; give YouTube its own search backend",
+      "details": "- Odysee: drop ?autoplay from embeds. With it, Odysee's player never\n  creates its video element, so the play button did nothing.\n- YouTube: new /api/youtube backend (server/youtube.js) used by a\n  Cloudflare Pages Function (functions/api/youtube.js) and by the Node\n  server. Uses the official Data API when YOUTUBE_API_KEY is set,\n  otherwise YouTube's web search. The browser tries it before the\n  public Piped servers, which were often down.\n- README: Cloudflare Pages setup.",
+      "notes": [
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "67d65cf",
+          "subject": "Turn SearXNG on with one command; better YouTube player"
+        },
+        {
+          "commit": "5fd630f",
+          "subject": "Fix Odysee playback; give YouTube its own search backend"
+        }
+      ],
+      "files": 20,
+      "sizeKB": 66
+    },
+    {
+      "version": "0.2",
+      "slug": "v0-2",
+      "title": "SearXNG replaces Claude",
+      "path": "versions/v0-2/",
+      "commit": "da44ae4",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/da44ae49e7ed365a37a2dc16b55f69d6fc3cd449",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/da44ae49e7ed365a37a2dc16b55f69d6fc3cd449",
+      "date": "2026-11-07T07:06:59+00:00",
+      "summary": "Replace Claude with SearXNG via a zero-dependency Node server",
+      "details": "- Remove the Claude finder and its settings.\n- server/: Node 18+ server with no dependencies. Serves the app, asks a\n  SearXNG instance's JSON API for videos, plays links Gol knows through\n  their official players, and opens other pages to keep only ones that\n  offer a video (embedded known players, og:video / twitter:player /\n  JSON-LD players that allow framing, plain video files). Refuses private\n  network addresses.\n- Pages behind cookie walls, consent or sign-in are marked needsCookies;\n  a setting (on by default) opens those videos on their own website.\n- Gol: SearXNG and generic web sites, per-site checks for mixed results,\n  sandboxed iframes for unknown players.",
+      "notes": [
+        "Some sources may not answer anymore (public servers it used have changed).",
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "da44ae4",
+          "subject": "Replace Claude with SearXNG via a zero-dependency Node server"
+        }
+      ],
+      "files": 20,
+      "sizeKB": 58
+    },
+    {
+      "version": "0.1",
+      "slug": "v0-1",
+      "title": "First MeoDeo: Gol and Claude",
+      "path": "versions/v0-1/",
+      "commit": "70c4c2a",
+      "commitUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/commit/70c4c2adfdea8ab2f249263ed9868f816149137f",
+      "codeUrl": "https://github.com/vendemiaraul-cyber/Video-Finder/tree/70c4c2adfdea8ab2f249263ed9868f816149137f",
+      "date": "2026-11-06T21:17:41+00:00",
+      "summary": "Build MeoDeo: multi-site video search powered by Gol and Claude",
+      "details": "- Gol: a dependency-free library of video website definitions. It searches\n  sites in parallel, recognises video links, and renders cards and players\n  only through each site's official player (ads stay on).\n- Searchable sites: YouTube, Dailymotion, PeerTube, Odysee, Internet\n  Archive, Wikimedia Commons, NASA, Europeana, Pexels. Recognised and\n  playable: Vimeo, Twitch, TikTok, TED, Streamable, Bilibili, Facebook,\n  Instagram, Loom.\n- Claude finder: Claude searches the whole web with its web search tool\n  and reports videos through a strict show_videos tool; only URLs returned\n  by search are kept. Runs in the browser with the visitor's own key.\n- Static site with no build step, ready for GitHub Pages.",
+      "notes": [
+        "The Claude finder is switched off in this copy: it needed a paid Anthropic API key.",
+        "Some sources may not answer anymore (public servers it used have changed).",
+        "Dailymotion videos don't play here: on 28 September 2026 Dailymotion started requiring a Player ID (fixed in v0.14)."
+      ],
+      "changes": [
+        {
+          "commit": "70c4c2a",
+          "subject": "Build MeoDeo: multi-site video search powered by Gol and Claude"
+        }
+      ],
+      "files": 19,
+      "sizeKB": 57
+    }
+  ]
+}

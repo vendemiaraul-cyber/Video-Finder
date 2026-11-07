@@ -272,3 +272,13 @@ adult-only (the RTA "Restricted To Adults" label, `<meta name="rating" content="
 schema.org `isFamilyFriendly: false`, an 18+ age restriction tag, or a
 "18 U.S.C. 2257" statement), the page is dropped and its website is banned for
 everyone, so nobody has to open it to decide. SearXNG now uses strict safe search.
+
+## Versions (legacy copies for testing)
+
+`versions.html` lists every MeoDeo version, newest first: date, what changed,
+the commit, and a link to the website exactly as it was (`versions/v0-1/` …).
+The copies are built from git with `node scripts/build-versions.mjs` (needs the
+full history). Each copy uses today's servers and gets today's content filter,
+takedowns and ban list (`versions/legacy-guard.js`), a "Legacy version" bar and
+a noindex tag. The first version's Claude finder is switched off (it needed a
+paid Anthropic API key).

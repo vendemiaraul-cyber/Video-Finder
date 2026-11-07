@@ -1,0 +1,119 @@
+:root {
+  --bg: #f5f6f9; --surface: #ffffff; --text: #15171c; --muted: #5d6573; --border: #dfe2e8;
+  --accent: #5b4bff; --accent-text: #fff; --searx: #3050ff;
+  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.06); --skeleton: #e8eaef;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1014; --surface: #171a20; --text: #e9ebef; --muted: #9aa2b1; --border: #2a2f38;
+    --accent: #8a7dff; --searx: #8ea2ff; --shadow: 0 1px 2px rgba(0,0,0,.4);
+    --skeleton: #22262e; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1014; --surface: #171a20; --text: #e9ebef; --muted: #9aa2b1; --border: #2a2f38;
+  --accent: #8a7dff; --searx: #8ea2ff; --shadow: 0 1px 2px rgba(0,0,0,.4);
+  --skeleton: #22262e; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+a { color: var(--accent); }
+
+.top { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; text-decoration: none; color: var(--text); }
+.search { display: flex; flex: 1 1 280px; max-width: 640px; min-width: 0; }
+.search input { flex: 1; min-width: 0; padding: 9px 12px; font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 10px 0 0 10px; }
+.search button, .primary { padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer; background: var(--accent);
+  color: var(--accent-text); border: 0; border-radius: 0 10px 10px 0; }
+.primary { border-radius: 10px; }
+.icon-btn { background: none; border: 1px solid var(--border); color: var(--text); border-radius: 8px; width: 34px; height: 34px;
+  font-size: 16px; cursor: pointer; flex: none; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; cursor: pointer; border: 1px solid var(--border);
+  border-radius: 999px; font-size: 13px; user-select: none; background: var(--surface); }
+.chip input { margin: 0; accent-color: var(--accent); }
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+.chip small { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 0 5px; border-radius: 4px; background: #f5c518; color: #000; }
+.chip small.key { background: var(--border); color: var(--muted); }
+.chip-off { opacity: .6; cursor: help; }
+
+main { padding: 16px; max-width: 1440px; margin: 0 auto; }
+.status { color: var(--muted); margin: 4px 0 10px; }
+.site-status { list-style: none; padding: 0; margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.site-status .err { color: #d0342c; }
+
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+@media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+.gol-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; cursor: pointer;
+  box-shadow: var(--shadow); transition: transform .12s; min-width: 0; }
+.gol-card:hover, .gol-card:focus-visible { transform: translateY(-2px); outline: 2px solid var(--accent); outline-offset: 1px; }
+.gol-card.skeleton { height: 260px; background: var(--skeleton); box-shadow: none; animation: pulse 1.2s ease-in-out infinite; cursor: default; }
+@keyframes pulse { 50% { opacity: .55; } }
+.gol-thumb { position: relative; aspect-ratio: 16 / 9; background: #0b0c0f; display: grid; place-items: center; }
+.gol-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.gol-thumb-fallback { color: #9aa2b1; font-weight: 700; }
+.gol-duration, .gol-linkout { position: absolute; bottom: 6px; background: rgba(0,0,0,.8); color: #fff; font-size: 12px; padding: 1px 6px; border-radius: 4px; }
+.gol-duration { right: 6px; }
+.gol-linkout { left: 6px; }
+.gol-body { padding: 10px 12px 12px; }
+.gol-title { margin: 0 0 4px; font-size: 15px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.gol-meta { margin: 0 0 6px; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gol-note { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-style: italic; }
+.gol-origin { margin: 0; display: flex; align-items: center; gap: 7px; font-size: 12px; min-width: 0; }
+.gol-badge { flex: none; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gol-domain { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.gol-ads { flex: none; font-size: 10px; text-transform: uppercase; padding: 0 5px; border-radius: 4px; background: #f5c518; color: #000; }
+.gol-via { flex: none; margin-left: auto; color: var(--searx); font-weight: 600; }
+.gol-cookies { flex: none; font-size: 10px; padding: 0 5px; border-radius: 4px; background: var(--border); color: var(--text); }
+
+dialog { width: min(1100px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); }
+dialog::backdrop { background: rgba(0,0,0,.75); }
+#settings { width: min(560px, calc(100vw - 32px)); }
+.player-head, .player-foot { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+.player-head h2 { margin: 0; font-size: 16px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.frame-wrap { aspect-ratio: 16 / 9; background: #000; }
+.frame-wrap iframe, .frame-wrap video { width: 100%; height: 100%; border: 0; display: block; background: #000; }
+.player-foot { flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.player-foot a, .player-foot .primary { margin-left: auto; font-weight: 600; }
+.ads-note { background: #fff4c2; color: #5a4600; padding: 2px 8px; border-radius: 4px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ads-note { background: #3d3410; color: #f5dc7a; } }
+.gol-linkpanel { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #e9ebef; padding: 16px; text-align: center; position: relative; }
+.gol-linkpanel img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .25; }
+.gol-linkpanel p, .gol-linkpanel a { position: relative; margin: 0; }
+.gol-button { background: var(--accent); color: #fff !important; padding: 10px 18px; border-radius: 10px; text-decoration: none; font-weight: 700; }
+
+.settings-body { padding: 0 14px; display: grid; gap: 14px; }
+fieldset { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 12px; display: grid; gap: 10px; margin: 0; }
+legend { font-weight: 700; padding: 0 4px; }
+fieldset label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+fieldset input, fieldset select { font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); width: 100%; }
+.hint { margin: 0; font-size: 12px; color: var(--muted); }
+.link-btn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
+
+.foot { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 16px 32px; }
+.check { display: flex !important; grid-template-columns: none !important; align-items: flex-start; gap: 8px !important; font-weight: 500 !important; }
+.check input { width: auto !important; margin-top: 2px; }
+.chip-note { font-size: 10px; text-transform: uppercase; padding: 0 5px; border-radius: 4px; background: var(--border); color: var(--muted); }
+.gol-yt-slot { width: 100%; height: 100%; }
+/* YouTube Shorts and other vertical videos */
+.frame-wrap.gol-vertical { aspect-ratio: auto; height: min(78vh, 720px); display: flex; justify-content: center; }
+.frame-wrap.gol-vertical > iframe, .frame-wrap.gol-vertical > .gol-yt-slot { aspect-ratio: 9 / 16; width: auto; height: 100%; max-width: 100%; }
+.state { margin: 0; font-size: 13px; padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); }
+.state.ok { color: #1f7a3f; border-color: #1f7a3f55; }
+.help { font-size: 13px; display: grid; gap: 6px; }
+.help p, .help ol { margin: 0; }
+.help ol { padding-left: 20px; display: grid; gap: 4px; }
+.help code, .hint code { font-size: 12px; background: var(--bg); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+.secondary { justify-self: start; font: inherit; font-weight: 600; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+.gol-actions { position: relative; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.gol-button { border: 0; font: inherit; cursor: pointer; }
+.gol-button-alt { background: rgba(255,255,255,.15) !important; }
+.cookie-hint { background: var(--bg); color: var(--text); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); }
+.radio { display: flex !important; align-items: flex-start; gap: 8px !important; font-weight: 500 !important; }
+.radio input { width: auto !important; margin-top: 2px; }
+.gol-flag { flex: none; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; padding: 0 5px; border-radius: 4px; border: 1px solid #c2410c; color: #c2410c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .gol-flag { border-color: #fb923c; color: #fb923c; } }

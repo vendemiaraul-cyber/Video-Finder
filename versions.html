@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>MeoDeo Versions</title>
+  <meta name="description" content="Every version of MeoDeo: what changed, when, and the website as it was, for testing.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <style>
+    .vers { max-width: 800px; margin: 0 auto; padding: 16px 16px 48px; }
+    .vers h1 { font-size: 26px; margin: 8px 0 4px; }
+    .vers .lead { color: var(--muted); margin: 0 0 16px; }
+    .vlist { display: grid; gap: 14px; }
+    .vcard { border: 1px solid var(--border); border-radius: 16px; background: var(--surface); padding: 14px 16px; scroll-margin-top: 90px; }
+    .vcard.current { border: 2px solid #5b4bff; }
+    .vcard.target { box-shadow: 0 0 0 3px #ffcf4a; }
+    .vhead { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+    .vnum { font: 700 13px/1 ui-monospace, monospace; background: #1f1b4d; color: #fff; padding: 5px 9px; border-radius: 999px; }
+    .vcard.current .vnum { background: #5b4bff; }
+    .vtitle { font-size: 18px; font-weight: 700; margin: 0; flex: 1 1 260px; }
+    .vmeta { color: var(--muted); font-size: 14px; margin: 6px 0 10px; }
+    .vmeta a { color: inherit; }
+    .vactions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .vactions a { text-decoration: none; }
+    .vnotes { margin: 8px 0; padding: 8px 12px; border-radius: 10px; background: #fff7d6; color: #5a4500; font-size: 14px; }
+    .vnotes ul { margin: 0; padding-left: 18px; }
+    .vcard details { margin-top: 6px; }
+    .vcard summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+    .vcard pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.5 ui-monospace, monospace; background: var(--bg, #f4f5fa); padding: 10px; border-radius: 10px; margin: 6px 0; }
+    .vcard ol { margin: 6px 0; padding-left: 22px; font-size: 14px; }
+    .vcard ol code { font-size: 12px; color: var(--muted); }
+    @media (prefers-color-scheme: dark) { .vnotes { background: #3a3110; color: #ffe9a6; } }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <a class="brand notranslate" translate="no" href="./"><img src="assets/favicon.svg" alt="" width="26" height="26"> MeoDeo</a>
+    <label class="lang" title="Language (translated by Google)"><span aria-hidden="true">🌐</span>
+      <select id="lang" aria-label="Language"></select></label>
+    <div id="gt-host" hidden></div>
+  </header>
+
+  <main class="vers">
+    <h1>Versions</h1>
+    <p class="lead">Every version of MeoDeo, newest first: what changed, when, the code, and the website exactly as it was.
+      Old versions are for testing. They use today's MeoDeo servers and today's content rules.</p>
+    <p id="vstatus" class="status" role="status">Loading…</p>
+    <div id="vlist" class="vlist"></div>
+  </main>
+
+  <footer class="foot"><a href="./">← Back to MeoDeo</a> · <a href="legal.html">Terms &amp; Privacy</a></footer>
+
+  <script type="module">
+    import { initLanguages } from "./assets/translate.js";
+    initLanguages(document.getElementById("lang"));
+    const $ = (s) => document.querySelector(s);
+    const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids.filter(Boolean)); return n; };
+    const fmt = (iso) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+    function card(v, { current = false } = {}) {
+      const id = "v" + v.version.replace(/\./g, "-");
+      const changes = v.changes || [];
+      return el("article", { className: "vcard" + (current ? " current" : ""), id },
+        el("div", { className: "vhead" },
+          el("span", { className: "vnum notranslate", textContent: (current ? "v" + v.version + " · current" : "v" + v.version) }),
+          el("h2", { className: "vtitle", textContent: v.title })),
+        el("p", { className: "vmeta" },
+          `${fmt(v.date)} · commit `, el("a", { href: v.commitUrl, target: "_blank", rel: "noopener", textContent: v.commit, className: "notranslate" }),
+          v.files ? ` · ${v.files} files, ${v.sizeKB} KB` : ""),
+        el("div", { className: "vactions" },
+          el("a", { className: current ? "primary" : "secondary", href: v.path, textContent: current ? "Open MeoDeo" : "Open this version ↗", ...(current ? {} : { target: "_blank" }) }),
+          el("a", { className: "link-btn", href: v.codeUrl, target: "_blank", rel: "noopener", textContent: "Code at this point" })),
+        v.notes?.length ? el("div", { className: "vnotes" }, el("strong", { textContent: "Things to know in this version" }),
+          el("ul", {}, ...v.notes.map((n) => el("li", { textContent: n })))) : null,
+        changes.length ? el("details", { open: changes.length <= 3 },
+          el("summary", { textContent: `What changed (${changes.length} ${changes.length === 1 ? "update" : "updates"})` }),
+          el("ol", {}, ...changes.map((c) => el("li", {}, c.subject + " ", el("code", { className: "notranslate", textContent: c.commit }))))) : null,
+        v.details ? el("details", {}, el("summary", { textContent: "Full notes" }), el("pre", { textContent: v.summary + "\n\n" + v.details })) : null,
+      );
+    }
+
+    try {
+      const res = await fetch("versions/versions.json", { cache: "no-cache" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      $("#vlist").replaceChildren(card(data.current, { current: true }), ...data.versions.map((v) => card(v)));
+      $("#vstatus").textContent = `${data.versions.length + 1} versions, from ${fmt(data.versions.at(-1).date)} to today.`;
+      const target = location.hash && document.getElementById(location.hash.slice(1));
+      if (target) { target.classList.add("target"); target.querySelectorAll("details").forEach((d) => (d.open = true)); target.scrollIntoView(); }
+    } catch (e) {
+      $("#vstatus").textContent = "Couldn't load the version list right now. (" + e.message + ")";
+    }
+  </script>
+</body>
+</html>

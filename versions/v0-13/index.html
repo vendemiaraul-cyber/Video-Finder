@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex, nofollow">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>MeoDeo</title>
+  <meta name="description" content="Search videos across many websites at once. Powered by Gol and SearXNG.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="26" height="26"> MeoDeo</a>
+    <form id="search-form" class="search" role="search">
+      <input id="q" name="q" type="search" placeholder="Search videos on every site…" maxlength="300" autocomplete="off" autofocus>
+      <button type="submit">Search</button>
+    </form>
+    <nav class="tabs" aria-label="Views">
+      <a href="#search" id="tab-search" class="tab">Search</a>
+      <a href="#feed" id="tab-feed" class="tab">Feed</a>
+    </nav>
+    <button id="account-btn" class="pill-btn" type="button">Sign in</button>
+    <button id="open-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings">⚙</button>
+    <div id="site-filters" class="filters" aria-label="Websites to search"></div>
+  </header>
+
+  <main>
+    <div id="view-search">
+      <p id="status" class="status" aria-live="polite"></p>
+      <section>
+        <ul id="site-status" class="site-status"></ul>
+        <div id="results" class="grid"></div>
+        <div id="others" class="others" hidden>
+          <button id="others-toggle" class="others-toggle" type="button" aria-expanded="false" aria-controls="others-list"></button>
+          <div id="others-list" class="grid" hidden></div>
+        </div>
+      </section>
+    </div>
+
+    <div id="view-feed" hidden>
+      <div class="feed-head">
+        <h2>Feed</h2>
+        <p class="status">Videos shared by MeoDeo users. Anyone can watch; sign in to post.</p>
+      </div>
+      <form id="post-form" class="post-form" hidden>
+        <label for="post-url">Video link</label>
+        <input id="post-url" name="url" type="url" required placeholder="https://…" autocomplete="off">
+        <label for="post-caption">Caption (optional)</label>
+        <input id="post-caption" name="caption" type="text" maxlength="280" placeholder="Why it's worth watching" autocomplete="off">
+        <div class="post-actions"><button class="primary" type="submit">Post</button><span id="post-status" class="status" role="status"></span></div>
+      </form>
+      <p id="post-signin" class="post-signin" hidden><button id="post-signin-btn" class="primary" type="button">Sign in to post</button></p>
+      <p id="feed-status" class="status" role="status"></p>
+      <div id="feed-list" class="grid feed"></div>
+      <button id="feed-more" class="secondary" type="button" hidden>Load more</button>
+    </div>
+  </main>
+
+  <footer class="foot">
+    MeoDeo · powered by <a href="https://github.com/vendemiaraul-cyber/Video-Finder/tree/main/gol" target="_blank" rel="noopener">Gol</a> ·
+    videos play in each website's own player and stay on that website
+  </footer>
+
+  <dialog id="player" aria-labelledby="player-title">
+    <div class="player-head">
+      <span id="player-badge"></span>
+      <h2 id="player-title"></h2>
+      <button id="player-close" class="icon-btn" type="button" aria-label="Close">✕</button>
+    </div>
+    <div id="player-frame" class="frame-wrap"></div>
+    <div class="player-foot">
+      <span id="player-meta"></span>
+      <span id="player-ads" class="ads-note" hidden></span>
+      <span id="player-hint" class="cookie-hint" hidden></span>
+      <button id="player-notplaying" class="link-btn" type="button" hidden>Not playing?</button>
+      <button id="player-share" class="secondary" type="button" hidden>Post to feed</button>
+      <a id="player-link" target="_blank" rel="noopener noreferrer"></a>
+    </div>
+  </dialog>
+
+  <dialog id="verify" class="verify" aria-labelledby="verify-title">
+    <div class="verify-body">
+      <img src="assets/favicon.svg" alt="" width="40" height="40">
+      <h2 id="verify-title">Quick check: are you human?</h2>
+      <p class="hint">This keeps bots from using up MeoDeo's free servers. Pick one:</p>
+      <div class="verify-options">
+        <button type="button" id="verify-pick-hcaptcha" class="verify-option"><strong>🧩 hCaptcha</strong><span>The classic CAPTCHA: pick the matching pictures.</span></button>
+        <button type="button" id="verify-pick-turnstile" class="verify-option"><strong>☁️ Cloudflare Turnstile</strong><span>Usually takes a moment with no puzzle; sometimes one click.</span></button>
+      </div>
+      <div id="verify-widget" class="verify-panel" hidden></div>
+      <p id="verify-error" class="auth-error" role="alert" hidden></p>
+      <p class="hint">Opened MeoDeo inside TikTok, Instagram or another app? You skip this step.</p>
+    </div>
+  </dialog>
+
+  <dialog id="auth" aria-labelledby="auth-title">
+    <form method="dialog" id="auth-form">
+      <div class="player-head">
+        <h2 id="auth-title">Sign in</h2>
+        <button class="icon-btn" value="cancel" aria-label="Close" formnovalidate>✕</button>
+      </div>
+      <div class="settings-body" id="auth-fields">
+        <div class="auth-switch" role="tablist">
+          <button type="button" id="auth-mode-login" class="tab active">Sign in</button>
+          <button type="button" id="auth-mode-signup" class="tab">Create account</button>
+        </div>
+        <label>Username <input id="auth-username" name="username" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}"></label>
+        <label>Password <input id="auth-password" name="password" type="password" autocomplete="current-password" required minlength="8" maxlength="200"></label>
+        <p id="auth-error" class="auth-error" role="alert" hidden></p>
+        <p class="hint">Your MeoDeo account is only for posting to the public feed. Usernames are public; passwords are stored encrypted (hashed).</p>
+      </div>
+      <div class="settings-body" id="auth-signed-in" hidden>
+        <p>Signed in as <strong id="auth-who"></strong>.</p>
+      </div>
+      <div class="player-foot">
+        <button type="button" id="auth-logout" class="link-btn" hidden>Sign out</button>
+        <button value="submit" id="auth-submit" class="primary">Sign in</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settings" aria-labelledby="settings-title">
+    <form method="dialog" id="settings-form">
+      <div class="player-head">
+        <h2 id="settings-title">Settings</h2>
+        <button class="icon-btn" value="cancel" aria-label="Close">✕</button>
+      </div>
+      <div class="settings-body">
+        <fieldset>
+          <legend>SearXNG</legend>
+          <label>MeoDeo server address
+            <input type="url" name="serverUrl" autocomplete="off" placeholder="empty = this website (e.g. http://localhost:8787)">
+          </label>
+          <p class="state" id="server-state" role="status">Checking…</p>
+          <div id="searxng-help" class="help" hidden>
+            <p><strong>Turn SearXNG on</strong> (on a computer with Docker):</p>
+            <ol>
+              <li>Download MeoDeo: <code>git clone https://github.com/vendemiaraul-cyber/Video-Finder</code></li>
+              <li>In that folder run <code>docker compose up -d</code></li>
+              <li>Open <code>http://localhost:8787</code>, or from your phone on the same Wi-Fi, <code>http://&lt;computer's IP&gt;:8787</code></li>
+            </ol>
+            <p class="hint">Already have SearXNG? Turn its JSON API on (<code>search.formats: [html, json]</code>), then run <code>SEARXNG_URL=http://your-searxng npm start</code>. Leave the address above empty when you open MeoDeo from its own server.</p>
+          </div>
+          <button type="button" id="check-server" class="secondary">Check again</button>
+        </fieldset>
+        <fieldset>
+          <legend>🍪 Cookies</legend>
+          <p class="hint">Some sites only play a video after you accept their cookies or sign in. What should MeoDeo do with those videos?</p>
+          <label class="radio"><input type="radio" name="cookieMode" value="inside">
+            <span><strong>Play them inside MeoDeo.</strong> The site opens in MeoDeo's player, where you can accept its cookies or sign in.</span></label>
+          <label class="radio"><input type="radio" name="cookieMode" value="open">
+            <span><strong>Open them on their own website</strong>, in a new tab.</span></label>
+          <p class="hint">Some browsers (Safari especially) limit cookies inside other websites. If a video stays blank, use "Watch on …" under the player.</p>
+        </fieldset>
+        <fieldset>
+          <legend>▶ Results</legend>
+          <label class="check"><input type="checkbox" name="playableOnly" value="on">
+            <span>Only show videos that play inside MeoDeo (hide the ones flagged "site only")</span></label>
+        </fieldset>
+        <fieldset id="site-keys">
+          <legend>Website keys (optional)</legend>
+        </fieldset>
+      </div>
+      <div class="player-foot">
+        <button type="button" id="clear-keys" class="link-btn">Forget all keys</button>
+        <button value="save" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="../legacy-guard.js" data-version="0.13" data-date="2026-11-07"></script>
+  <script type="module" src="assets/app.js"></script>
+</body>
+</html>
