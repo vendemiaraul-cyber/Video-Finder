@@ -41,7 +41,12 @@ const SEARXNG_PROBLEMS = {
 let searxngState = { on: false, text: "Checking…" };
 
 let wakeTries = 0;
-async function checkServer({ fresh = false } = {}) {
+let serverCheck = Promise.resolve();
+function checkServer(opts) {
+  serverCheck = runServerCheck(opts);
+  return serverCheck;
+}
+async function runServerCheck({ fresh = false } = {}) {
   gol.unavailable.set("searxng", "checking…");
   searxngState = { on: false, text: "Checking…" };
   showServerState();
@@ -118,6 +123,13 @@ let run = 0;
 
 async function search(query) {
   const id = ++run;
+  // If the SearXNG check is still running (a sleeping server wakes slowly), wait for it,
+  // so SearXNG isn't skipped just because the answer hasn't arrived yet.
+  if (gol.unavailable.get("searxng") === "checking…") {
+    els.status.textContent = "Waking up SearXNG…";
+    await serverCheck;
+    if (id !== run) return;
+  }
   history.replaceState(null, "", "?q=" + encodeURIComponent(query));
   document.title = `${query} · MeoDeo`;
   const ids = chosenSites();
@@ -249,6 +261,7 @@ els.settings.addEventListener("close", () => {
 
 /* ---------- boot ---------- */
 
+gol.unavailable.set("searxng", "checking…"); // until the first check answers
 els.form.addEventListener("submit", (e) => {
   e.preventDefault();
   const q = els.q.value.trim();
