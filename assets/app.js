@@ -34,8 +34,8 @@ const serverBase = () => (settings.serverUrl || "").replace(/\/+$/, "");
 const SEARXNG_PROBLEMS = {
   "json-off": (u) => `SearXNG at ${u} is running, but its JSON API is off. Add "json" under search.formats in its settings.yml and restart it.`,
   "limiter-on": (u) => `SearXNG at ${u} is blocking MeoDeo with its limiter. Set server.limiter: false and restart it.`,
-  "unreachable": (u) => `Can't reach SearXNG at ${u}. If it's a Hugging Face Space it may be waking up: wait a minute and tap Check again. On your own computer, start it with docker compose up -d.`,
-  "auth": (u) => `SearXNG at ${u} refused MeoDeo's access token. Check HF_TOKEN in the Cloudflare project's settings.`,
+  "unreachable": (u) => `Can't reach SearXNG at ${u}. If it's on Render's free plan it may be waking up: wait a minute and tap Check again. On your own computer, start it with docker compose up -d.`,
+  "auth": (u) => `SearXNG at ${u} refused MeoDeo's key. Check SEARXNG_KEY in the Cloudflare project's settings.`,
   "not-set": () => "No SearXNG address is set (SEARXNG_URL in Cloudflare or on the MeoDeo server).",
 };
 let searxngState = { on: false, text: "Checking…" };

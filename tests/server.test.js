@@ -256,15 +256,15 @@ test("the Cloudflare SearXNG functions use SEARXNG_URL and the Hugging Face toke
   const realFetch = globalThis.fetch;
   const seen = [];
   globalThis.fetch = async (u, init = {}) => {
-    seen.push({ url: String(u), auth: init.headers?.authorization });
+    seen.push({ url: String(u), auth: init.headers?.authorization, key: init.headers?.["x-meodeo-key"] });
     return jsonResponse(200, searxReply([{ url: "https://vimeo.com/76979871", title: "Vimeo one", length: 61 }]));
   };
   try {
-    const env = { SEARXNG_URL: "https://someone-meodeo-searxng.hf.space", HF_TOKEN: "hf_test" };
+    const env = { SEARXNG_URL: "https://someone-meodeo-searxng.hf.space", HF_TOKEN: "hf_test", SEARXNG_KEY: "k1" };
     const r = await searchFn({ request: new Request("https://x.pages.dev/api/search?q=cats"), env });
     const d = await r.json();
     assert.equal(d.videos[0].site, "vimeo");
-    assert.ok(seen.every((s) => s.auth === "Bearer hf_test"));
+    assert.ok(seen.every((s) => s.auth === "Bearer hf_test" && s.key === "k1"));
     assert.match(seen[0].url, /^https:\/\/someone-meodeo-searxng\.hf\.space\/search\?q=cats&format=json/);
     const h = await (await healthFn({ env })).json();
     assert.equal(h.searxng, true);

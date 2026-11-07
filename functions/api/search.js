@@ -1,13 +1,17 @@
 // Cloudflare Pages Function: GET /api/search?q=...
 // SearXNG video search for MeoDeo on Cloudflare. Set in the Pages project:
-//   SEARXNG_URL  your SearXNG address (e.g. a private Hugging Face Space)
-//   HF_TOKEN     (secret) a Hugging Face read token, if that Space is private
+//   SEARXNG_URL  your SearXNG address (e.g. the Render service from searxng-host/)
+//   SEARXNG_KEY  (secret) the key the searxng-host gate expects
+//   HF_TOKEN     (secret, optional) for SearXNG on a private Hugging Face Space
 import { Gol } from "../../gol/gol.js";
 import sites from "../../gol/sites/index.js";
 import { querySearxngAny, toVideos, SearxngError } from "../../server/searxng.js";
 import { workerFetchPage } from "../../server/worker-fetch.js";
 
-export const authHeaders = (env) => (env.HF_TOKEN ? { authorization: `Bearer ${env.HF_TOKEN}` } : {});
+export const authHeaders = (env) => ({
+  ...(env.SEARXNG_KEY ? { "x-meodeo-key": env.SEARXNG_KEY } : {}),
+  ...(env.HF_TOKEN ? { authorization: `Bearer ${env.HF_TOKEN}` } : {}),
+});
 
 export async function onRequestGet({ request, env }) {
   const q = (new URL(request.url).searchParams.get("q") || "").trim();

@@ -101,14 +101,16 @@ On GitHub Pages (no server), MeoDeo still searches the other websites directly. 
 
 Cloudflare also runs `functions/api/youtube.js` (a Pages Function), which gives MeoDeo its own YouTube search, so YouTube works without a key and without the public Piped servers. Optional: in the Pages project's **Settings → Variables and Secrets**, add `YOUTUBE_API_KEY` to use the official YouTube Data API instead. On the free plan, going over the daily request allowance makes this function return an error until the next day; Cloudflare never charges you without a paid plan.
 
-**SearXNG on Cloudflare:** SearXNG itself can't run on Cloudflare, so it runs as a **private Hugging Face Space** (free, no card) made from `searxng-space/`, and two Pages Functions (`functions/api/search.js`, `functions/api/health.js`) reach it. In the Pages project's **Settings → Variables and Secrets**, set:
+**SearXNG on Cloudflare:** SearXNG itself can't run on Cloudflare, so it runs on **Render's free plan** (Docker web service, no card) from `searxng-host/`: SearXNG with the JSON API on, behind a small lock (`gate.py`) that only answers requests carrying `MEODEO_KEY`. Two Pages Functions (`functions/api/search.js`, `functions/api/health.js`) reach it. Set:
 
-| Name | Type | Value |
+| Where | Name | Value |
 |---|---|---|
-| `SEARXNG_URL` | Text | the Space's address, e.g. `https://<user>-meodeo-searxng.hf.space` |
-| `HF_TOKEN` | Secret | a Hugging Face **read** token (so the private Space lets MeoDeo in) |
+| Render service | `MEODEO_KEY` | a long random string |
+| Render service | `SEARXNG_SECRET` | another long random string |
+| Cloudflare Pages | `SEARXNG_URL` | the Render address, e.g. `https://meodeo-searxng.onrender.com` |
+| Cloudflare Pages (secret) | `SEARXNG_KEY` | the same value as `MEODEO_KEY` |
 
-Then redeploy. ⚙ Settings in MeoDeo shows whether SearXNG is on. A Space that hasn't been used for a while goes to sleep and takes about a minute to wake up.
+Then redeploy. ⚙ Settings in MeoDeo shows whether SearXNG is on. Render's free plan sleeps after 15 minutes without use, so the first search after a break takes about a minute.
 
 ## Publish on GitHub Pages
 

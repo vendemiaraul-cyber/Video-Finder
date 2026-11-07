@@ -65,7 +65,7 @@ export async function querySearxng(query, { baseUrl, pages = 2, categories = "vi
     Object.entries({ q: query, format: "json", categories, pageno: i + 1, safesearch, language })
       .forEach(([k, v]) => u.searchParams.set(k, v));
     const res = await fetchImpl(u, { headers: { accept: "application/json", ...headers }, signal: AbortSignal.timeout(timeoutMs) });
-    if (res.status === 401) throw new SearxngError("SearXNG refused the access token (check HF_TOKEN).");
+    if (res.status === 401) throw new SearxngError("SearXNG refused MeoDeo's key (check SEARXNG_KEY).");
     if (res.status === 403) throw new SearxngError("SearXNG refused JSON. Turn the JSON API on: add \"json\" under search.formats in its settings.yml.");
     if (res.status === 429) throw new SearxngError("SearXNG is rate limiting this server (its limiter is on). Turn server.limiter off for your own instance.");
     if (!res.ok) throw new SearxngError(`SearXNG answered HTTP ${res.status}`);
