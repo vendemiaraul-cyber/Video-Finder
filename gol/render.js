@@ -29,10 +29,15 @@ export function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-/** Coloured label naming the site. */
+/** Coloured label: the site's name, or "SearXNG Results" for videos SearXNG found. */
 export function badge(video, gol) {
-  const color = gol?.sites.get(video.site)?.color || "#5d6573";
-  return el("span", { class: "gol-badge", style: { background: color }, text: video.siteName });
+  const fromSearxng = video.via === "searxng";
+  const site = gol?.sites.get(fromSearxng ? "searxng" : video.site);
+  return el("span", {
+    class: "gol-badge", style: { background: site?.color || "#5d6573" },
+    title: fromSearxng ? `Found through SearXNG${video.foundBy ? ` (${video.foundBy})` : ""}; plays from ${video.domain}` : null,
+    text: fromSearxng ? "SearXNG Results" : video.siteName,
+  });
 }
 
 /** A result card. onOpen(video) fires when it is clicked or activated by keyboard. */
@@ -63,7 +68,6 @@ export function card(video, { gol, onOpen } = {}) {
                   text: video.domain, onclick: (e) => e.stopPropagation() }),
         video.ads ? el("span", { class: "gol-ads", title: "This site shows its own ads in its player", text: "ads" }) : null,
         video.needsCookies ? el("span", { class: "gol-cookies", title: "This site needs its own cookies, so it opens on the site", text: "🍪 cookies" }) : null,
-        video.via === "searxng" ? el("span", { class: "gol-via", title: "Found through SearXNG" + (video.foundBy ? ` (${video.foundBy})` : ""), text: "SearXNG" }) : null,
       ),
     ),
   );
@@ -81,6 +85,7 @@ export function player(video, container, { gol } = {}) {
   // A site can bring its own player (e.g. YouTube's IFrame Player API).
   const site = gol?.sites.get(video.site);
   if (play.kind === "iframe" && site?.mount) return site.mount(video, container) || (() => container.replaceChildren());
+  if (play.vertical) container.classList.add("gol-vertical"); // e.g. TikTok
   if (play.kind === "iframe") {
     const src = play.src.replace("{parent}", encodeURIComponent(location.hostname || "localhost"));
     const sandboxed = gol?.sites.get(video.site)?.sandboxed;

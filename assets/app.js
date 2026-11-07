@@ -195,7 +195,8 @@ function openPlayer(video) {
     .filter(Boolean).join(" · ");
   const ads = $("#player-ads");
   ads.hidden = !video.ads;
-  ads.textContent = video.ads ? `Playing in ${video.siteName}'s own player. ${video.siteName} may show ads.` : "";
+  const siteLabel = gol.sites.get(video.site)?.name || video.domain;
+  ads.textContent = video.ads ? `Playing in ${siteLabel}'s own player. ${siteLabel} may show ads.` : "";
   const link = $("#player-link");
   link.href = video.url;
   link.textContent = `Watch on ${video.domain} ↗`;

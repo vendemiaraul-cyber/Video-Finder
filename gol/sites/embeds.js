@@ -28,8 +28,12 @@ export default [
   {
     id: "tiktok", name: "TikTok", domain: "tiktok.com", color: "#111111", ads: false,
     embedHosts: ["www.tiktok.com"],
-    match: [{ re: /^https?:\/\/(?:www\.)?tiktok\.com\/@([^/]+)\/video\/(\d+)/,
-      video: (m) => ({ id: m[2], channel: "@" + m[1], play: iframe(`https://www.tiktok.com/embed/v2/${m[2]}`) }) }],
+    // TikTok's official Embed Player (player/v1): real controls, no "watch on TikTok"
+    // overlay like the older embed/v2. TikToks are vertical.
+    match: [{ re: /^https?:\/\/(?:www\.|m\.)?tiktok\.com\/@([^/]+)\/video\/(\d+)/,
+      video: (m) => ({ id: m[2], channel: "@" + m[1],
+        play: { kind: "iframe", vertical: true,
+                src: `https://www.tiktok.com/player/v1/${m[2]}?music_info=1&description=1&rel=0&playsinline=1` } }) }],
   },
   {
     id: "ted", name: "TED", domain: "ted.com", color: "#e62b1e", ads: false,

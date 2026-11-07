@@ -44,6 +44,7 @@ SearXNG runs on a free server that sleeps after 15 minutes without use. The firs
 ```
 
 - `domain` is the website the video really lives on (for PeerTube, the specific server). Always show it, so people know where a video comes from.
+- `via: "searxng"` marks videos found through SearXNG. Label those "SearXNG Results" (with the domain next to it) rather than with the site's name, the way MeoDeo does.
 - `play` says how to show it: `iframe` (that site's official embed player), `video` (a plain file: `play.sources[].src`), or `link` (the site doesn't allow embedding, so link to `url`).
 - `ads: true` means the site shows its own ads in its player. Keep embeds on the official player so those ads, and the creator's income, stay intact. Never strip or re-host the video.
 - `needsCookies: true` means the site only plays with its own cookies (consent or sign-in). Link to `url` instead of embedding.
@@ -51,6 +52,6 @@ SearXNG runs on a free server that sleeps after 15 minutes without use. The firs
 
 ## Presenting results
 
-For a person, give a short numbered list: title, website (domain), length, channel, and the watch link. For code or a web page, use `play.src` in an iframe with `allow="autoplay; encrypted-media; picture-in-picture; fullscreen"` and `referrerpolicy="strict-origin-when-cross-origin"` (YouTube refuses to play without a referrer). Add `playsinline=1` to YouTube embeds, so phones play them in the page. Don't add `?autoplay` to Odysee embeds: it breaks their player.
+For a person, give a short numbered list: title, website (domain), length, channel, and the watch link. For code or a web page, use `play.src` in an iframe with `allow="autoplay; encrypted-media; picture-in-picture; fullscreen"` and `referrerpolicy="strict-origin-when-cross-origin"` (YouTube refuses to play without a referrer). Add `playsinline=1` to YouTube embeds, so phones play them in the page. Don't add `?autoplay` to Odysee embeds: it breaks their player. TikTok embeds (`tiktok.com/player/v1/...`) are vertical; give them a 9:16 frame.
 
 Pick the results that best fit what the user asked for. Don't just paste everything; spread picks across websites when the matches are similarly good.

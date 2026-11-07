@@ -92,7 +92,8 @@ async function main() {
   }
   console.log(`# ${videos.length} videos for "${o.query}" (via ${BASE})\n`);
   videos.forEach((v, n) => {
-    const meta = [v.siteName + (v.domain && v.domain !== v.siteName ? ` (${v.domain})` : ""), fmtTime(v.duration), v.channel, v.ads ? "ads" : "", v.needsCookies ? "needs cookies" : ""]
+    const label = v.via === "searxng" ? "SearXNG Results" : v.siteName;
+    const meta = [label + (v.domain ? ` (${v.domain})` : ""), fmtTime(v.duration), v.channel, v.ads ? "ads" : "", v.needsCookies ? "needs cookies" : ""]
       .filter(Boolean).join(" · ");
     console.log(`${n + 1}. **${v.title}**\n   ${meta}\n   ${v.url}` + (v.play?.kind === "iframe" ? `\n   embed: ${v.play.src}` : ""));
   });

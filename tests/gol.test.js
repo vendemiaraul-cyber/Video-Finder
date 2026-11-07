@@ -108,7 +108,7 @@ test("fromUrl recognises many sites and builds official embeds", () => {
     "https://vimeo.com/76979871": ["vimeo", "https://player.vimeo.com/video/76979871?autoplay=1"],
     "https://www.dailymotion.com/video/x8qdsa6": ["dailymotion", null],
     "https://www.twitch.tv/videos/123456": ["twitch", "https://player.twitch.tv/?video=v123456&parent={parent}&autoplay=true"],
-    "https://www.tiktok.com/@user/video/7300000000000000000": ["tiktok", null],
+    "https://www.tiktok.com/@user/video/7300000000000000000": ["tiktok", "https://www.tiktok.com/player/v1/7300000000000000000?music_info=1&description=1&rel=0&playsinline=1"],
     "https://www.ted.com/talks/ken_robinson_do_schools_kill_creativity": ["ted", "https://embed.ted.com/talks/ken_robinson_do_schools_kill_creativity"],
     "https://streamable.com/abc12": ["streamable", null],
     "https://www.bilibili.com/video/BV1GJ411x7h7": ["bilibili", null],
