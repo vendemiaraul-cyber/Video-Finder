@@ -11,6 +11,8 @@ export default {
   ads: false,
   needsServer: true,
   limit: 40, // SearXNG gathers many sites, so it may return more than one site's share
+  // A free server (e.g. Render) sleeps when unused and takes about a minute to wake.
+  deadlineMs: 90000,
 
   async search(q, { fetchJSON, keys }) {
     const base = (keys.serverUrl || "").replace(/\/+$/, "");

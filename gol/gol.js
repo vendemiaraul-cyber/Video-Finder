@@ -91,7 +91,7 @@ export class Gol {
     await Promise.all(
       chosen.map(async (site) => {
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(new Error("timed out")), this.deadlineMs);
+        const timer = setTimeout(() => ctrl.abort(new Error("timed out")), site.deadlineMs || this.deadlineMs);
         try {
           const raw = await site.search(query, { ...this.context(ctrl.signal), limit });
           const videos = raw.map((v) => this.normalize(site, v)).filter(Boolean).slice(0, site.limit || limit);

@@ -40,6 +40,7 @@ const SEARXNG_PROBLEMS = {
 };
 let searxngState = { on: false, text: "Checking…" };
 
+let wakeTries = 0;
 async function checkServer({ fresh = false } = {}) {
   gol.unavailable.set("searxng", "checking…");
   searxngState = { on: false, text: "Checking…" };
@@ -49,12 +50,19 @@ async function checkServer({ fresh = false } = {}) {
     const data = res.ok ? await res.json() : null;
     if (data?.app !== "meodeo") throw new Error("no MeoDeo server");
     if (data.searxng) {
+      wakeTries = 0;
       gol.unavailable.delete("searxng");
       searxngState = { on: true, text: `SearXNG is on ✓ (${data.searxngUrl})` };
     } else {
       const text = (SEARXNG_PROBLEMS[data.reason] || SEARXNG_PROBLEMS.unreachable)(data.searxngUrl);
       gol.unavailable.set("searxng", "SearXNG is off: see Settings");
       searxngState = { on: false, text };
+      // A sleeping free server answers after about a minute: check again by itself.
+      if (data.reason === "unreachable" && wakeTries < 4) {
+        wakeTries++;
+        searxngState.text = "SearXNG is waking up (free servers sleep when unused). Checking again in 20 seconds…";
+        setTimeout(() => checkServer({ fresh: true }), 20000);
+      }
     }
   } catch {
     gol.unavailable.set("searxng", "SearXNG is off: see Settings");

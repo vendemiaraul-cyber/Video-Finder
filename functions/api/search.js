@@ -20,7 +20,7 @@ export async function onRequestGet({ request, env }) {
   const gol = new Gol().register(sites);
   try {
     const { results, unresponsive } = await querySearxngAny(q, {
-      baseUrl: env.SEARXNG_URL, pages: 2, headers: authHeaders(env),
+      baseUrl: env.SEARXNG_URL, pages: 2, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
     });
     const { videos, stats } = await toVideos(results, {
       gol, probeLimit: 8, concurrency: 4, probeOpts: { fetch: workerFetchPage, timeoutMs: 5000 },
