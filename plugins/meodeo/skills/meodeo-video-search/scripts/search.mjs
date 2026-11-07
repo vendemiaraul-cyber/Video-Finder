@@ -86,6 +86,12 @@ async function main() {
     }
   }
 
+  // Put the best matches first: titles containing more of the search words rank higher
+  // (ties keep the round-robin order, so sites stay mixed).
+  const words = [...new Set(o.query.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) || [])];
+  const score = (v) => { const t = (v.title || "").toLowerCase(); return words.filter((w) => t.includes(w)).length; };
+  videos.splice(0, videos.length, ...videos.map((v, i) => [v, i, score(v)]).sort((a, b) => b[2] - a[2] || a[1] - b[1]).map(([v]) => v));
+
   if (o.json) {
     console.log(JSON.stringify({ query: o.query, site: BASE, count: videos.length, errors, videos }, null, 2));
     return;
