@@ -1,8 +1,9 @@
 import { util } from "../gol.js";
 import { el } from "../render.js";
 
-// Search goes through the official YouTube Data API when you add a key in
-// Settings. Without one, Gol asks a public Piped instance for search results.
+// Search order: your own YouTube Data API key (Settings), then MeoDeo's own
+// backend (/api/youtube on Cloudflare or the MeoDeo server), then public
+// Piped servers.
 // Either way, playback always uses YouTube's own player, so YouTube's ads run
 // as normal.
 const PIPED = ["https://api.piped.private.coffee", "https://pipedapi.kavin.rocks", "https://pipedapi.adminforge.de"];
@@ -138,7 +139,21 @@ export default {
         play: play(it.id.videoId),
       }));
     }
+    // MeoDeo's own backend: a Cloudflare Pages Function or the MeoDeo server.
     let lastErr;
+    try {
+      const base = (keys.serverUrl || "").replace(/\/+$/, "");
+      const data = await fetchJSON(`${base}/api/youtube?q=${encodeURIComponent(q)}`);
+      if (Array.isArray(data.videos) && data.videos.length) {
+        return data.videos.slice(0, limit).map((v) => ({
+          id: v.id, title: v.title, url: watchUrl(v.id), thumbnail: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+          duration: v.duration, channel: v.channel, views: v.views, published: v.published,
+          play: play(v.id),
+        }));
+      }
+    } catch (e) {
+      lastErr = e; // no backend here (e.g. GitHub Pages): try the public servers
+    }
     for (const base of PIPED) {
       try {
         const data = await fetchJSON(`${base}/search?` + util.qs({ q, filter: "videos" }));

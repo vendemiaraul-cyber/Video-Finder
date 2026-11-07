@@ -92,7 +92,7 @@ test("Commons, NASA, Odysee and Europeana parse", async () => {
   assert.equal(by.commons.title, "Cat video");
   assert.equal(by.commons.play.kind, "video");
   assert.equal(by.nasa.play.sources[0].src, "https://images-assets.nasa.gov/video/A%20B/A%20B~medium.mp4");
-  assert.equal(by.odysee.play.src, "https://odysee.com/$/embed/cats/abc123?autoplay=1");
+  assert.equal(by.odysee.play.src, "https://odysee.com/$/embed/cats/abc123"); // no ?autoplay: it breaks Odysee's player
   assert.equal(by.europeana.url, "https://archive.example/item");
   assert.equal(by.europeana.title, "Cats");
   assert.equal(by.europeana.play.kind, "link");
@@ -116,7 +116,7 @@ test("fromUrl recognises many sites and builds official embeds", () => {
     "https://www.instagram.com/reel/Cabc123/": ["instagram", null],
     "https://www.loom.com/share/0123456789abcdef0123456789abcdef": ["loom", null],
     "https://archive.org/details/night_of_the_living_dead": ["archive", null],
-    "https://odysee.com/@chan:3/my-video:a1": ["odysee", "https://odysee.com/$/embed/my-video/a1?autoplay=1"],
+    "https://odysee.com/@chan:3/my-video:a1": ["odysee", "https://odysee.com/$/embed/my-video/a1"],
     "https://tilvids.com/w/9c9de5e8-0a1e-484a-b099-e80766180a6d": ["peertube", "https://tilvids.com/videos/embed/9c9de5e8-0a1e-484a-b099-e80766180a6d?autoplay=1"],
     "https://commons.wikimedia.org/wiki/File:Cat_lapping.webm": ["commons", null],
     "https://www.nytimes.com/video/world/123.html": ["web", null],
@@ -179,4 +179,18 @@ test("YouTube links keep their start time, Shorts play vertically, and embed err
   assert.equal(timed.url, "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s");
   assert.match(ERRORS[150], /won't play this video here/);
   assert.equal(typeof g.sites.get("youtube").mount, "function");
+});
+
+test("YouTube search tries MeoDeo's own backend before public Piped servers", async () => {
+  const asked = [];
+  const g = new Gol({ fetch: async (url) => {
+    asked.push(String(url));
+    if (String(url).startsWith("/api/youtube")) return { ok: true, status: 200, json: async () => ({ videos: [{ id: "xc1SzgGhMKc", title: "Apollo", duration: 1192, views: 5 }] }) };
+    return { ok: false, status: 404, json: async () => ({}) };
+  } }).register(sites);
+  const r = await g.search("apollo", { sites: ["youtube"] });
+  assert.equal(asked[0], "/api/youtube?q=apollo");
+  assert.equal(asked.length, 1);
+  assert.equal(r.videos[0].play.src, "https://www.youtube.com/embed/xc1SzgGhMKc?autoplay=1&rel=0&playsinline=1");
+  assert.equal(r.videos[0].duration, 1192);
 });

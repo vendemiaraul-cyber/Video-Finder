@@ -8,7 +8,7 @@ Type what you want to watch. MeoDeo asks lots of video websites at the same time
 
 | Website | How MeoDeo finds videos | Plays on MeoDeo | Ads |
 |---|---|---|---|
-| YouTube | Search (official API with your key, otherwise a public Piped server) | ✅ official YouTube player | ✅ YouTube's ads |
+| YouTube | Search (your own key, else MeoDeo's backend on Cloudflare or the MeoDeo server, else public Piped servers) | ✅ official YouTube player | ✅ YouTube's ads |
 | Dailymotion | Search | ✅ official player | ✅ Dailymotion's ads |
 | PeerTube (thousands of independent sites) | Search via SepiaSearch | ✅ each site's own player | none |
 | Odysee | Search | ✅ official player | ✅ Odysee's ads |
@@ -87,10 +87,21 @@ SEARXNG_URL=http://127.0.0.1:8888 npm start
 | `SEARXNG_CATEGORIES` | `videos` | e.g. `videos,general` to check more pages |
 | `PROBE_LIMIT` | `16` | max unknown pages checked per search |
 | `ALLOW_ORIGIN` | `*` | CORS, so the GitHub Pages copy can use your server |
+| `YOUTUBE_API_KEY` | (none) | official YouTube Data API for `/api/youtube`; without it, YouTube's web search is used |
 
 The server only opens public web pages: it refuses private and local network addresses, caps time and size, and serves only the app's own files.
 
 On GitHub Pages (no server), MeoDeo still searches the other websites directly. To add SearXNG there, run the MeoDeo server and put its address in ⚙ Settings → SearXNG.
+
+## Publish on Cloudflare Pages (free, no card)
+
+1. On **dash.cloudflare.com**, open **Workers & Pages → Create → Pages → Connect to Git**, and pick **Video-Finder**.
+2. Production branch: the branch with MeoDeo. **Build command:** leave empty. **Build output directory:** `/`.
+3. **Save and Deploy.** MeoDeo goes live at `https://<project>.pages.dev`.
+
+Cloudflare also runs `functions/api/youtube.js` (a Pages Function), which gives MeoDeo its own YouTube search, so YouTube works without a key and without the public Piped servers. Optional: in the Pages project's **Settings → Variables and Secrets**, add `YOUTUBE_API_KEY` to use the official YouTube Data API instead. On the free plan, going over the daily request allowance makes this function return an error until the next day; Cloudflare never charges you without a paid plan.
+
+SearXNG can't run on Cloudflare. To add it, run the MeoDeo server with SearXNG on a computer (`docker compose up -d`) and put its address in ⚙ Settings → SearXNG.
 
 ## Publish on GitHub Pages
 

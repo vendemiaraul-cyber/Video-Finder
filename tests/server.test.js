@@ -204,3 +204,35 @@ test("health reports the reason when SearXNG's JSON API is off", async () => {
     srv.close();
   }
 });
+
+import { parseWebResults, clock, count, searchYouTube } from "../server/youtube.js";
+import { onRequestGet } from "../functions/api/youtube.js";
+
+test("YouTube web results parse into videos", () => {
+  const data = { contents: { sectionListRenderer: { contents: [{ itemSectionRenderer: { contents: [
+    { videoRenderer: { videoId: "xc1SzgGhMKc", title: { runs: [{ text: "Apollo 11" }] }, ownerText: { runs: [{ text: "AFJ" }] },
+      lengthText: { simpleText: "19:52" }, viewCountText: { simpleText: "3,163,291 views" } } },
+    { adSlotRenderer: {} },
+    { videoRenderer: { videoId: "upcoming123", title: { runs: [{ text: "Soon" }] }, upcomingEventData: {} } },
+    { videoRenderer: { videoId: "hzApsIPHRwo", title: { simpleText: "Footage" } } },
+  ] } }] } } };
+  const v = parseWebResults(data, 10);
+  assert.deepEqual(v.map((x) => x.id), ["xc1SzgGhMKc", "hzApsIPHRwo"]);
+  assert.equal(v[0].duration, 1192);
+  assert.equal(v[0].views, 3163291);
+  assert.equal(clock("1:02:03"), 3723);
+  assert.equal(count("12 views"), 12);
+});
+
+test("YouTube search uses the official API when a key is set", async () => {
+  let asked;
+  const fetchImpl = async (u) => { asked = String(u); return jsonResponse(200, { items: [{ id: { videoId: "abcdefghijk" }, snippet: { title: "T", channelTitle: "C", publishedAt: "2024-05-01T00:00:00Z" } }] }); };
+  const v = await searchYouTube("x", { apiKey: "KEY", fetchImpl });
+  assert.match(asked, /googleapis\.com\/youtube\/v3\/search/);
+  assert.equal(v[0].published, "2024-05-01");
+});
+
+test("the Cloudflare Pages Function answers like the Node server", async () => {
+  const bad = await onRequestGet({ request: new Request("https://x.pages.dev/api/youtube"), env: {} });
+  assert.equal(bad.status, 400);
+});

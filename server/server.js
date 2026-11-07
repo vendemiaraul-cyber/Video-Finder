@@ -7,6 +7,7 @@
  *
  * Serves the MeoDeo website and adds:
  *   GET /api/health          -> { ok, searxng, reason }  (reason: json-off, limiter-on, unreachable)
+ *   GET /api/youtube?q=...   -> YouTube search (official API with YOUTUBE_API_KEY)
  *   GET /api/search?q=...    -> SearXNG video results that really offer a
  *                               video, as Gol videos
  */
@@ -17,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { Gol } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
 import { querySearxngAny, toVideos, SearxngError, checkSearxng, searxngList } from "./searxng.js";
+import { searchYouTube } from "./youtube.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC = ["index.html", "assets", "gol"]; // only these are served
@@ -31,6 +33,7 @@ export function config(env = process.env) {
     safesearch: env.SEARXNG_SAFESEARCH ?? "1",
     probeLimit: +(env.PROBE_LIMIT || 16),
     allowOrigin: env.ALLOW_ORIGIN || "*",
+    youtubeKey: env.YOUTUBE_API_KEY || undefined,
     // Testing only: lets the probe open pages on this machine's network.
     allowPrivate: env.MEODEO_ALLOW_PRIVATE === "1",
   };
@@ -99,6 +102,22 @@ export function createServer(cfg = config(), { fetchImpl = fetch } = {}) {
           } };
         }
         return json(res, 200, health.data);
+      }
+
+      if (url.pathname === "/api/youtube") {
+        const q = (url.searchParams.get("q") || "").trim();
+        if (!q || q.length > 300) return json(res, 400, { error: "missing or too long q" });
+        const key = "yt:" + q.toLowerCase();
+        let videos = searchCache.get(key);
+        if (!videos) {
+          try {
+            videos = await searchYouTube(q, { limit: 12, apiKey: cfg.youtubeKey, fetchImpl });
+            searchCache.set(key, videos);
+          } catch (err) {
+            return json(res, 502, { error: err.message });
+          }
+        }
+        return json(res, 200, { videos });
       }
 
       if (url.pathname === "/api/search") {

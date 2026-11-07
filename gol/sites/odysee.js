@@ -1,5 +1,9 @@
 import { util } from "../gol.js";
 
+// Odysee's embed breaks when "?autoplay" is added: the player never creates
+// its video and the play button does nothing. So: no autoplay parameter.
+const embed = (name, claimId) => ({ kind: "iframe", src: `https://odysee.com/$/embed/${encodeURIComponent(name)}/${claimId}` });
+
 export default {
   id: "odysee",
   name: "Odysee",
@@ -17,13 +21,13 @@ export default {
         id: it.claimId, title: it.title || it.name, url: `https://odysee.com/${path}`,
         thumbnail: it.thumbnail_url, duration: it.duration, channel: it.channel,
         published: util.date(it.release_time),
-        play: { kind: "iframe", src: `https://odysee.com/$/embed/${encodeURIComponent(it.name)}/${it.claimId}?autoplay=1` },
+        play: embed(it.name, it.claimId),
       };
     });
   },
 
   match: [
     { re: /^https?:\/\/odysee\.com\/(?:@[^/]+\/)?([^/:?#]+):([0-9a-f]+)/i,
-      video: (m) => ({ id: m[2], play: { kind: "iframe", src: `https://odysee.com/$/embed/${m[1]}/${m[2]}?autoplay=1` } }) },
+      video: (m) => ({ id: m[2], play: embed(decodeURIComponent(m[1]), m[2]) }) },
   ],
 };
