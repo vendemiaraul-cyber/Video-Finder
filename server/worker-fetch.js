@@ -24,7 +24,7 @@ async function readLimited(res, maxBytes) {
   return text.slice(0, maxBytes);
 }
 
-export async function workerFetchPage(url, { timeoutMs = 6000, maxBytes = 400_000, maxRedirects = 5, fetchImpl = fetch } = {}) {
+export async function workerFetchPage(url, { timeoutMs = 6000, maxBytes = 250_000, maxRedirects = 5, fetchImpl = fetch } = {}) {
   const chain = [url];
   let current = url;
   for (let hop = 0; hop <= maxRedirects; hop++) {

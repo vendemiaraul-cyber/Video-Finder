@@ -18,6 +18,18 @@ export function parseLength(v) {
 const https = (u) => (typeof u === "string" && u ? u.replace(/^http:\/\//, "https://") : undefined);
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
 
+/**
+ * Sites MeoDeo already searches on its own (plus TikTok): SearXNG's job is to
+ * find videos on OTHER websites, so results from these are skipped.
+ * Override with SEARXNG_SKIP ("none" keeps everything).
+ */
+export const DEFAULT_SKIP = ["youtube", "dailymotion", "peertube", "odysee", "archive", "commons", "nasa", "europeana", "pexels", "tiktok"];
+export function skipList(v) {
+  if (v === undefined || v === null || String(v).trim() === "") return new Set(DEFAULT_SKIP);
+  if (String(v).trim().toLowerCase() === "none") return new Set();
+  return new Set(String(v).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean));
+}
+
 /** Split SEARXNG_URL ("http://a:8080, http://b:8888") into a list. */
 export const searxngList = (v) => String(v || "").split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -109,8 +121,8 @@ async function pool(items, limit, fn) {
  *  - links Gol recognises play in that site's official player right away
  *  - other links are probed; pages with no video are dropped
  */
-export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6, probeOpts = {}, cache }) {
-  const stats = { results: results.length, recognised: 0, probed: 0, kept: 0, dropped: 0, cookies: 0 };
+export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6, probeOpts = {}, cache, skip = new Set(DEFAULT_SKIP) }) {
+  const stats = { results: results.length, recognised: 0, skipped: 0, probed: 0, kept: 0, dropped: 0, cookies: 0 };
   let probes = 0;
   const videos = await pool(results, concurrency, async (r) => {
     const common = {
@@ -126,6 +138,8 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
 
     const known = gol.fromUrl(r.url, clean(common));
     if (known && known.site !== "web") {
+      // Already covered by MeoDeo's own search of that site: skip it.
+      if (skip.has(known.site)) { stats.skipped++; return null; }
       stats.recognised++;
       return known;
     }
@@ -148,6 +162,9 @@ export async function toVideos(results, { gol, probeLimit = 16, concurrency = 6,
       channel: common.channel || p.channel,
       published: common.published || p.published,
     });
+    // A page that only embeds a video from a site MeoDeo already covers (e.g. an
+    // article with a YouTube player) isn't a new source: skip it too.
+    if (p.kind === "gol" && skip.has(p.video.site)) { stats.skipped++; return null; }
     if (p.kind === "gol") {
       // e.g. an article embedding a YouTube video: play that player, credit the page
       return { ...p.video, ...page, url: r.url, id: p.video.id, domain: pageHost,

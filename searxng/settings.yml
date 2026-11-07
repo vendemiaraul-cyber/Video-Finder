@@ -1,5 +1,8 @@
 # SearXNG settings for MeoDeo.
-# Everything not listed here keeps SearXNG's defaults.
+# MeoDeo already searches YouTube, Dailymotion, PeerTube, Odysee, Internet
+# Archive, Wikimedia Commons, NASA and Europeana itself, so SearXNG's job is
+# to find videos on OTHER websites. Everything not listed keeps SearXNG's
+# defaults.
 use_default_settings: true
 
 general:
@@ -13,12 +16,54 @@ search:
     - json
 
 server:
-  # Set through SEARXNG_SECRET in docker-compose.yml / .env.
-  # secret_key: ...
+  # Set through SEARXNG_SECRET (docker-compose.yml, or the Render service).
   # This instance is private to MeoDeo, so don't rate-limit it.
   limiter: false
   public_instance: false
   image_proxy: false
 
+outgoing:
+  # Free servers are slow: give each search engine more time to answer.
+  request_timeout: 6.0
+  max_request_timeout: 12.0
+
 ui:
   default_theme: simple
+
+engines:
+  # Video sources for other websites (off in SearXNG by default).
+  - name: rumble
+    disabled: false
+  - name: bitchute
+    disabled: false
+  - name: bilibili
+    disabled: false
+  - name: niconico
+    disabled: false
+  - name: media.ccc.de
+    disabled: false
+  - name: ina
+    disabled: false
+  - name: mediathekviewweb
+    disabled: false
+  - name: acfun
+    disabled: false
+  - name: qwant videos
+    disabled: false
+  - name: fireball videos
+    disabled: false
+  - name: privacywall videos
+    disabled: false
+  - name: tusksearch videos
+    disabled: false
+  - name: vuhuv videos
+    disabled: false
+  # Sites MeoDeo already searches directly: no need to ask SearXNG.
+  - name: youtube
+    disabled: true
+  - name: dailymotion
+    disabled: true
+  - name: sepiasearch
+    disabled: true
+  - name: wikicommons.videos
+    disabled: true

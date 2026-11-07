@@ -4,7 +4,7 @@ import http from "node:http";
 import { Gol } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
 import { extract, allowsFraming, probe } from "../server/probe.js";
-import { parseLength, querySearxng, querySearxngAny, checkSearxng, toVideos } from "../server/searxng.js";
+import { parseLength, querySearxng, querySearxngAny, checkSearxng, toVideos, skipList, DEFAULT_SKIP } from "../server/searxng.js";
 import { fetchPage, isPrivateAddress } from "../server/net.js";
 import { createServer, config } from "../server/server.js";
 
@@ -132,7 +132,7 @@ test("toVideos keeps only results that offer a video", async () => {
     { url: base + "/novideo", title: "No video" },
     { url: base + "/gated", title: "Gated" },
   ];
-  const { videos, stats } = await toVideos(results, { gol, probeOpts: { allowPrivate: true, fetch: fetchPage } });
+  const { videos, stats } = await toVideos(results, { gol, probeOpts: { allowPrivate: true, fetch: fetchPage }, skip: new Set() });
   assert.equal(stats.recognised, 1);
   assert.equal(stats.probed, 3);
   assert.equal(stats.dropped, 2); // /novideo has no video; /gated is http, and Gol only keeps https links
@@ -283,4 +283,20 @@ test("Cloudflare settings saved with a number (SEARXNG_URL1) still work", async 
   assert.deepEqual(authHeaders(env), { "x-meodeo-key": "abc" });
   assert.equal(setting({ SEARXNG_URL: "a", SEARXNG_URL1: "b" }, "SEARXNG_URL"), "a");
   assert.equal(setting({ SEARXNG_URLX: "b" }, "SEARXNG_URL"), "");
+});
+
+test("SearXNG results from sites MeoDeo already searches are skipped, other websites are kept", async () => {
+  const results = [
+    { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "YouTube copy" },
+    { url: "https://tilvids.com/w/9c9de5e8-0a1e-484a-b099-e80766180a6d", title: "PeerTube copy" },
+    { url: "https://www.tiktok.com/@user/video/7300000000000000000", title: "TikTok" },
+    { url: "https://vimeo.com/76979871", title: "Vimeo" },
+    { url: base + "/article", title: "Article embedding YouTube" },
+  ];
+  const { videos, stats } = await toVideos(results, { gol, probeOpts: { allowPrivate: true, fetch: fetchPage } });
+  assert.deepEqual(videos.map((v) => v.site), ["vimeo"]);
+  assert.equal(stats.skipped, 4);
+  assert.deepEqual([...skipList("")], DEFAULT_SKIP);
+  assert.equal(skipList("none").size, 0);
+  assert.deepEqual([...skipList("youtube, TikTok")], ["youtube", "tiktok"]);
 });

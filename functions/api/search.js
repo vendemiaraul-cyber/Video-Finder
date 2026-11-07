@@ -5,7 +5,7 @@
 //   HF_TOKEN     (secret, optional) for SearXNG on a private Hugging Face Space
 import { Gol } from "../../gol/gol.js";
 import sites from "../../gol/sites/index.js";
-import { querySearxngAny, toVideos, SearxngError } from "../../server/searxng.js";
+import { querySearxngAny, toVideos, SearxngError, skipList } from "../../server/searxng.js";
 import { workerFetchPage } from "../../server/worker-fetch.js";
 
 // Trim: keys pasted on a phone often pick up a space or line break.
@@ -29,9 +29,12 @@ export async function onRequestGet({ request, env }) {
   try {
     const { results, unresponsive } = await querySearxngAny(q, {
       baseUrl: setting(env, "SEARXNG_URL"), pages: 2, headers: authHeaders(env), timeoutMs: 75000, // free servers wake slowly
+      // videos + the general web: the probe keeps only pages that really offer a video
+      categories: setting(env, "SEARXNG_CATEGORIES") || "videos,general",
     });
     const { videos, stats } = await toVideos(results, {
-      gol, probeLimit: 8, concurrency: 4, probeOpts: { fetch: workerFetchPage, timeoutMs: 5000 },
+      gol, probeLimit: 12, concurrency: 6, probeOpts: { fetch: workerFetchPage, timeoutMs: 5000 },
+      skip: skipList(setting(env, "SEARXNG_SKIP")),
     });
     return Response.json({ query: q, videos, stats, unresponsive }, { headers: { "cache-control": "public, max-age=300" } });
   } catch (err) {

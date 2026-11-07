@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Gol } from "../gol/gol.js";
 import sites from "../gol/sites/index.js";
-import { querySearxngAny, toVideos, SearxngError, checkSearxng, searxngList } from "./searxng.js";
+import { querySearxngAny, toVideos, SearxngError, checkSearxng, searxngList, skipList } from "./searxng.js";
 import { searchYouTube } from "./youtube.js";
 import { fetchPage } from "./net.js";
 
@@ -30,7 +30,8 @@ export function config(env = process.env) {
     host: env.HOST || "127.0.0.1",
     searxngUrl: env.SEARXNG_URL || "http://127.0.0.1:8888",
     pages: Math.max(1, Math.min(5, +(env.SEARXNG_PAGES || 2))),
-    categories: env.SEARXNG_CATEGORIES || "videos",
+    categories: env.SEARXNG_CATEGORIES || "videos,general",
+    skip: skipList(env.SEARXNG_SKIP),
     safesearch: env.SEARXNG_SAFESEARCH ?? "1",
     probeLimit: +(env.PROBE_LIMIT || 16),
     allowOrigin: env.ALLOW_ORIGIN || "*",
@@ -77,7 +78,7 @@ export function createServer(cfg = config(), { fetchImpl = fetch } = {}) {
       baseUrl: cfg.searxngUrl, pages: cfg.pages, categories: cfg.categories, safesearch: cfg.safesearch, fetchImpl,
     });
     const { videos, stats } = await toVideos(results, {
-      gol, probeLimit: cfg.probeLimit, cache: probeCache, probeOpts: { allowPrivate: cfg.allowPrivate, fetch: fetchPage },
+      gol, probeLimit: cfg.probeLimit, cache: probeCache, probeOpts: { allowPrivate: cfg.allowPrivate, fetch: fetchPage }, skip: cfg.skip,
     });
     const out = { query: q, videos, stats, unresponsive };
     searchCache.set(key, out);
