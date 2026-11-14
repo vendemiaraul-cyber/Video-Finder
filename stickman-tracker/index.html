@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stickman Body Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout idea: a motion-capture stage. Stickman stage is the hero, source video sits beside it (below on phones), controls in one strip. Single dark theme by choice. */
+  --stage:#1b2231;
+  --panel:#252e41;
+  --edge:#36415a;
+  --chalk:#f4efe4;
+  --muted:#96a1b8;
+  --marker:#ff8a3d;
+  --ok:#62d2a6;
+  --warn:#ffcf5c;
+  --bad:#ff7a7a;
+  --display:"Bricolage Grotesque","Trebuchet MS",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--stage);color:var(--chalk);font-family:var(--body);font-size:16px;line-height:1.45}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 16px 40px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(1.5rem,5vw,2.1rem);line-height:1.05;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1 span{color:var(--marker)}
+h2{font-family:var(--display);font-weight:600;font-size:.82rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--edge);font-size:.86rem;font-weight:500}
+.pill i{width:9px;height:9px;border-radius:50%;background:var(--warn);flex:none}
+.pill[data-state="ok"] i{background:var(--ok)}
+.pill[data-state="bad"] i{background:var(--bad)}
+.grid{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:820px){.grid{grid-template-columns:1.15fr 1fr;align-items:start}}
+.card{background:var(--panel);border:1px solid var(--edge);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.cardhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.cardhead small{color:var(--muted);font-size:.8rem;font-variant-numeric:tabular-nums}
+#stage{width:100%;display:block;border-radius:10px;background:var(--stage);aspect-ratio:3/4;max-height:72vh}
+.videobox{position:relative;border-radius:10px;overflow:hidden;background:var(--stage)}
+.videobox video{display:block;width:100%;height:auto;max-height:72vh}
+.videobox canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.drop{border:2px dashed var(--edge);border-radius:10px;padding:34px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;color:var(--muted)}
+.drop.over{border-color:var(--marker);color:var(--chalk)}
+.drop p{margin:0;max-width:34ch}
+[hidden]{display:none!important}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.btn{font:600 .95rem var(--body);color:var(--stage);background:var(--marker);border:0;border-radius:10px;padding:11px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.btn.ghost{background:transparent;color:var(--chalk);border:1px solid var(--edge)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible,select:focus-visible,input:focus-visible+span,label.btn:focus-within{outline:2px solid var(--chalk);outline-offset:2px}
+.check{display:inline-flex;align-items:center;gap:8px;font-size:.92rem;cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--marker);margin:0}
+.field{display:inline-flex;align-items:center;gap:8px;font-size:.92rem}
+select{font:500 .92rem var(--body);color:var(--chalk);background:var(--stage);border:1px solid var(--edge);border-radius:8px;padding:8px 10px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.note{color:var(--muted);font-size:.86rem;margin:0;max-width:65ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Stickman <span>Body Tracker</span></h1>
+    <div class="pill" id="status" data-state="wait" role="status"><i></i><span id="statusText">Loading tracker</span></div>
+  </header>
+
+  <div class="grid">
+    <section class="card" aria-label="Stickman">
+      <div class="cardhead"><h2>Stickman</h2><small id="fps">Rest pose</small></div>
+      <canvas id="stage"></canvas>
+    </section>
+
+    <section class="card" aria-label="Source video">
+      <div class="cardhead"><h2>Your video</h2><small id="vinfo"></small></div>
+      <div class="drop" id="drop">
+        <p>Pick a video of one person moving. Full body in frame works best.</p>
+        <label class="btn" for="file">Choose video<input class="sr" type="file" id="file" accept="video/*"></label>
+      </div>
+      <div class="videobox" id="videobox" hidden>
+        <video id="video" playsinline muted loop controls></video>
+        <canvas id="overlay"></canvas>
+      </div>
+    </section>
+  </div>
+
+  <section class="card" aria-label="Controls">
+    <div class="controls">
+      <button class="btn" id="play" type="button" disabled>Play</button>
+      <label class="btn ghost" for="file" id="change" hidden>Change video</label>
+      <label class="check"><input type="checkbox" id="center" checked><span>Keep stickman centred</span></label>
+      <label class="check"><input type="checkbox" id="joints" checked><span>Show joints</span></label>
+      <label class="check"><input type="checkbox" id="onvideo" checked><span>Draw tracking on video</span></label>
+      <label class="field" for="detail">Detail
+        <select id="detail">
+          <option value="0">Fast</option>
+          <option value="1" selected>Balanced</option>
+          <option value="2">Precise</option>
+        </select>
+      </label>
+    </div>
+    <p class="note">The video stays on your device. Tracking runs in this page and follows one person at a time, using 33 body points.</p>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script>
+(function(){
+"use strict";
+var MP_BASE="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/";
+var $=function(id){return document.getElementById(id)};
+var css=getComputedStyle(document.documentElement);
+var C={chalk:css.getPropertyValue("--chalk").trim(),marker:css.getPropertyValue("--marker").trim(),
+       stage:css.getPropertyValue("--stage").trim(),edge:css.getPropertyValue("--edge").trim(),muted:css.getPropertyValue("--muted").trim()};
+
+var video=$("video"),stage=$("stage"),overlay=$("overlay");
+var sctx=stage.getContext("2d"),octx=overlay.getContext("2d");
+var optCenter=$("center"),optJoints=$("joints"),optOnVideo=$("onvideo");
+
+// Landmark indices (MediaPipe Pose, 33 points)
+var NOSE=0,LEAR=7,REAR=8,LSH=11,RSH=12,LEL=13,REL=14,LWR=15,RWR=16,LIX=19,RIX=20,LHP=23,RHP=24,LKN=25,RKN=26,LAN=27,RAN=28,LFT=31,RFT=32;
+var LIMBS=[[LSH,LEL],[LEL,LWR],[LWR,LIX],[RSH,REL],[REL,RWR],[RWR,RIX],[LHP,LKN],[LKN,LAN],[LAN,LFT],[RHP,RKN],[RKN,RAN],[RAN,RFT]];
+var JOINTS=[LSH,RSH,LEL,REL,LWR,RWR,LHP,RHP,LKN,RKN,LAN,RAN];
+
+// Rest pose shown before a video is loaded (a small wave)
+function restPose(){
+  var p=[];for(var i=0;i<33;i++)p.push({x:.5,y:.5,visibility:0});
+  function s(i,x,y){p[i]={x:x,y:y,visibility:1}}
+  s(NOSE,.5,.17);s(LEAR,.535,.165);s(REAR,.465,.165);
+  s(LSH,.60,.30);s(RSH,.40,.30);
+  s(LEL,.70,.25);s(LWR,.75,.12);s(LIX,.76,.09);
+  s(REL,.34,.44);s(RWR,.32,.57);s(RIX,.32,.60);
+  s(LHP,.56,.56);s(RHP,.44,.56);
+  s(LKN,.57,.74);s(RKN,.43,.74);
+  s(LAN,.57,.91);s(RAN,.43,.91);
+  s(LFT,.61,.935);s(RFT,.39,.935);
+  return p;
+}
+
+var landmarks=restPose(),isRest=true,lost=false;
+var aspect=3/4;           // source frame width / height
+var smooth=null;          // smoothed centre + scale for centred mode
+
+function fit(canvas){
+  var r=canvas.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);
+  var w=Math.max(1,Math.round(r.width*d)),h=Math.max(1,Math.round(r.height*d));
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h}
+}
+function vis(p){return p&&(p.visibility===undefined?1:p.visibility)}
+function mid(a,b){return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,visibility:Math.min(vis(a),vis(b))}}
+
+// Map normalized landmarks to canvas pixels
+function project(lm,W,H,centred){
+  // frame box contained in the canvas
+  var fw=W,fh=W/aspect; if(fh>H){fh=H;fw=H*aspect}
+  var ox=(W-fw)/2,oy=(H-fh)/2;
+  var pts=lm.map(function(p){return {x:ox+p.x*fw,y:oy+p.y*fh,visibility:vis(p)}});
+  var hip=mid(pts[LHP],pts[RHP]),sh=mid(pts[LSH],pts[RSH]);
+  var torso=Math.hypot(hip.x-sh.x,hip.y-sh.y)||fh*.25;
+  if(centred){
+    var target=H*.24,k=target/torso;
+    if(!smooth)smooth={x:hip.x,y:hip.y,k:k};
+    else{smooth.x+=(hip.x-smooth.x)*.25;smooth.y+=(hip.y-smooth.y)*.25;smooth.k+=(k-smooth.k)*.12}
+    var cx=W/2,cy=H*.53,sx=smooth.x,sy=smooth.y,sk=smooth.k;
+    pts=pts.map(function(p){return {x:cx+(p.x-sx)*sk,y:cy+(p.y-sy)*sk,visibility:p.visibility}});
+    torso=torso*sk;
+  }
+  return {pts:pts,torso:torso};
+}
+
+function drawFloor(ctx,W,H){
+  ctx.save();ctx.fillStyle=C.edge;
+  var step=Math.max(22,Math.round(W/14));
+  for(var y=step/2;y<H;y+=step)for(var x=step/2;x<W;x+=step){ctx.beginPath();ctx.arc(x,y,1.2,0,6.283);ctx.fill()}
+  ctx.restore();
+}
+
+function drawStickman(ctx,pts,torso,opts){
+  var lw=opts.thin?Math.max(2,torso*.035):Math.min(Math.max(torso*.085,3),18);
+  ctx.lineCap="round";ctx.lineJoin="round";ctx.lineWidth=lw;ctx.strokeStyle=opts.color;
+  function seg(a,b){
+    var v=Math.min(a.visibility,b.visibility);
+    if(v<.25)return;
+    ctx.globalAlpha=opts.alpha*(v<.55?.4:1);
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+  }
+  var sh=mid(pts[LSH],pts[RSH]),hip=mid(pts[LHP],pts[RHP]);
+  var head=mid(pts[LEAR],pts[REAR]);
+  if(head.visibility<.25)head=pts[NOSE];
+  var r=Math.max(torso*.27,lw*1.5);
+  // spine, shoulders, hips
+  seg(sh,hip);seg(pts[LSH],pts[RSH]);seg(pts[LHP],pts[RHP]);
+  // limbs
+  LIMBS.forEach(function(l){seg(pts[l[0]],pts[l[1]])});
+  // neck up to the edge of the head
+  if(head.visibility>=.25&&sh.visibility>=.25){
+    var dx=head.x-sh.x,dy=head.y-sh.y,d=Math.hypot(dx,dy)||1;
+    if(d>r)seg(sh,{x:head.x-dx/d*r,y:head.y-dy/d*r,visibility:Math.min(head.visibility,sh.visibility)});
+    ctx.globalAlpha=opts.alpha;
+    ctx.beginPath();ctx.arc(head.x,head.y,r,0,6.283);
+    if(opts.fillHead){ctx.fillStyle=opts.fillHead;ctx.fill()}
+    ctx.stroke();
+  }
+  if(opts.joints){
+    ctx.fillStyle=opts.jointColor;
+    JOINTS.forEach(function(i){var p=pts[i];if(p.visibility<.25)return;
+      ctx.globalAlpha=opts.alpha*(p.visibility<.55?.4:1);
+      ctx.beginPath();ctx.arc(p.x,p.y,lw*.62,0,6.283);ctx.fill()});
+  }
+  ctx.globalAlpha=1;
+}
+
+function render(){
+  fit(stage);
+  var W=stage.width,H=stage.height;
+  sctx.clearRect(0,0,W,H);
+  drawFloor(sctx,W,H);
+  if(landmarks){
+    var pr=project(landmarks,W,H,optCenter.checked&&!isRest);
+    drawStickman(sctx,pr.pts,pr.torso,{color:C.chalk,alpha:lost?.35:1,joints:optJoints.checked,jointColor:C.marker,fillHead:C.stage});
+  }
+  if(!$("videobox").hidden){
+    fit(overlay);
+    var w=overlay.width,h=overlay.height;
+    octx.clearRect(0,0,w,h);
+    if(optOnVideo.checked&&landmarks&&!isRest&&!lost){
+      var pts=landmarks.map(function(p){return {x:p.x*w,y:p.y*h,visibility:vis(p)}});
+      var a=mid(pts[LSH],pts[RSH]),b=mid(pts[LHP],pts[RHP]);
+      drawStickman(octx,pts,Math.hypot(a.x-b.x,a.y-b.y)||h*.2,{thin:true,color:C.marker,alpha:.95,joints:true,jointColor:C.chalk});
+    }
+  }
+}
+
+// ---------- status ----------
+function setStatus(state,text){$("status").dataset.state=state;$("statusText").textContent=text}
+
+// ---------- tracker ----------
+var pose=null,ready=false,busy=false,frames=0,fpsT=performance.now();
+function onResults(res){
+  if(res.poseLandmarks){landmarks=res.poseLandmarks;isRest=false;lost=false;setStatus("ok","Tracking")}
+  else if(!isRest){lost=true;setStatus("wait","No body found in this frame")}
+  frames++;
+  var now=performance.now();
+  if(now-fpsT>1000){$("fps").textContent=Math.round(frames*1000/(now-fpsT))+" frames/s";frames=0;fpsT=now}
+  render();
+}
+function initTracker(){
+  if(typeof Pose==="undefined"){setStatus("bad","Tracker failed to load. Check your connection and reload.");return}
+  try{
+    pose=new Pose({locateFile:function(f){return MP_BASE+f}});
+    pose.setOptions({modelComplexity:+$("detail").value,smoothLandmarks:true,enableSegmentation:false,minDetectionConfidence:.5,minTrackingConfidence:.5});
+    pose.onResults(onResults);
+    var slow=setTimeout(function(){if(!ready)setStatus("wait","Still loading the tracker")},12000);
+    pose.initialize().then(function(){
+      clearTimeout(slow);ready=true;
+      setStatus("ok",video.src?"Tracker ready":"Tracker ready. Choose a video.");
+      tick();
+    }).catch(function(){clearTimeout(slow);setStatus("bad","Tracker failed to load. Check your connection and reload.")});
+  }catch(e){setStatus("bad","This browser cannot run the tracker.")}
+}
+function tick(){
+  if(!ready||busy||video.readyState<2||!video.videoWidth)return Promise.resolve();
+  busy=true;
+  return pose.send({image:video}).catch(function(){setStatus("bad","Tracking stopped on this frame.")}).then(function(){busy=false});
+}
+function loop(){
+  tick();
+  if(video.paused||video.ended)return;
+  if(video.requestVideoFrameCallback)video.requestVideoFrameCallback(loop);else requestAnimationFrame(loop);
+}
+
+// ---------- video ----------
+var url=null;
+function loadFile(f){
+  if(!f)return;
+  if(f.type&&f.type.indexOf("video/")!==0){setStatus("bad","That file is not a video.");return}
+  if(url)URL.revokeObjectURL(url);
+  url=URL.createObjectURL(f);
+  smooth=null;landmarks=restPose();isRest=true;lost=false;
+  video.src=url;
+  $("drop").hidden=true;$("videobox").hidden=false;$("change").hidden=false;$("play").disabled=false;
+  $("fps").textContent="";
+  video.play().catch(function(){});
+}
+$("file").addEventListener("change",function(e){loadFile(e.target.files[0]);e.target.value=""});
+var drop=$("drop");
+["dragenter","dragover"].forEach(function(t){document.addEventListener(t,function(e){e.preventDefault();drop.classList.add("over")})});
+["dragleave","drop"].forEach(function(t){document.addEventListener(t,function(e){e.preventDefault();drop.classList.remove("over")})});
+document.addEventListener("drop",function(e){if(e.dataTransfer&&e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0])});
+
+video.addEventListener("loadedmetadata",function(){
+  aspect=video.videoWidth/video.videoHeight||3/4;
+  stage.style.aspectRatio=video.videoWidth+"/"+video.videoHeight;
+  $("vinfo").textContent=video.videoWidth+"×"+video.videoHeight+", "+video.duration.toFixed(1)+" s";
+  render();
+});
+video.addEventListener("error",function(){setStatus("bad","This browser cannot play that video. Try an MP4.")});
+video.addEventListener("loadeddata",tick);
+video.addEventListener("seeked",tick);
+video.addEventListener("play",function(){$("play").textContent="Pause";loop()});
+video.addEventListener("pause",function(){$("play").textContent="Play"});
+$("play").addEventListener("click",function(){if(video.paused)video.play().catch(function(){});else video.pause()});
+
+[optCenter,optJoints,optOnVideo].forEach(function(el){el.addEventListener("change",function(){smooth=null;render()})});
+$("detail").addEventListener("change",function(){
+  if(!pose)return;
+  setStatus("wait","Switching detail level");
+  pose.setOptions({modelComplexity:+this.value});
+  tick().then(function(){if(ready&&isRest)setStatus("ok","Tracker ready")});
+});
+
+if(window.ResizeObserver)new ResizeObserver(render).observe(stage);
+window.addEventListener("resize",render);
+render();
+initTracker();
+})();
+</script>
+</body>
+</html>
